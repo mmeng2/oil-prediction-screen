@@ -4,10 +4,11 @@ import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, FileText, BrainCircui
 interface NewsItem {
   id: string;
   title: string;
-  source: string;
+  source?: string;
   dateRange: string;
   impact: string;
   bgColor?: string; // Support for specific background gradients
+  isSimilar?: boolean;
 }
 
 const STATIC_TOP_10: NewsItem[] = [
@@ -21,6 +22,19 @@ const STATIC_TOP_10: NewsItem[] = [
   { id: '8', title: '事件八：全球经济衰退', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: '9', title: '事件九：货币政策调整', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: '10', title: '事件十：航运与物流中断', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+];
+
+const SIMILAR_EVENTS_TOP_10: NewsItem[] = [
+  { id: 's1', title: '相似事件一：美伊以冲突升级', dateRange: '2024/03/12 ~ 2024/05/23', impact: '90%', isSimilar: true },
+  { id: 's2', title: '相似事件二：俄乌冲突持续', dateRange: '2024/03/12 ~ 2024/05/23', impact: '85%', isSimilar: true },
+  { id: 's3', title: '相似事件三：胡塞武装袭击红海油轮', dateRange: '2024/03/12 ~ 2024/05/23', impact: '70%', isSimilar: true },
+  { id: 's4', title: '相似事件四：利比亚内战', dateRange: '2024/03/12 ~ 2024/05/23', impact: '65%', isSimilar: true },
+  { id: 's5', title: '相似事件五：两伊战争', dateRange: '2024/03/12 ~ 2024/05/23', impact: '60%', isSimilar: true },
+  { id: 's6', title: '相似事件六：尼日利亚产油区动乱', dateRange: '2024/03/12 ~ 2024/05/23', impact: '55%', isSimilar: true },
+  { id: 's7', title: '相似事件七：阿尔及利亚与摩洛哥地缘政治冲突', dateRange: '2024/03/12 ~ 2024/05/23', impact: '53%', isSimilar: true },
+  { id: 's8', title: '相似事件八：页岩油产能波动', dateRange: '2024/03/12 ~ 2024/05/23', impact: '46%', isSimilar: true },
+  { id: 's9', title: '相似事件九：资源枯竭与产能下滑', dateRange: '2024/03/12 ~ 2024/05/23', impact: '43%', isSimilar: true },
+  { id: 's10', title: '相似事件十：季节性需求波动', dateRange: '2024/03/12 ~ 2024/05/23', impact: '34%', isSimilar: true },
 ];
 
 function NewsCard({ item }: { item: NewsItem }) {
@@ -55,8 +69,8 @@ function NewsCard({ item }: { item: NewsItem }) {
           <h4 className={`text-sm font-semibold text-slate-200 flex-1 transition-colors ${expanded ? 'text-[#00ffff]' : 'group-hover:text-white'}`}>
             {item.title}
           </h4>
-          <div className={`flex items-center gap-1 shrink-0 ${item.impact.startsWith('+') ? 'text-red-500' : 'text-green-500'}`}>
-            {item.impact.startsWith('+') ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          <div className={`flex items-center gap-1 shrink-0 ${item.isSimilar ? 'text-red-500' : item.impact.startsWith('+') ? 'text-red-500' : 'text-green-500'}`}>
+            {!item.isSimilar && (item.impact.startsWith('+') ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />)}
             <span className="text-xs font-bold">{item.impact}</span>
             <div className="ml-1 text-slate-500 group-hover:text-slate-300 transition-colors">
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -64,7 +78,7 @@ function NewsCard({ item }: { item: NewsItem }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-slate-500">{item.source}</span>
+          {item.source && <span className="text-[11px] text-slate-500">{item.source}</span>}
           <span className="text-[11px] text-slate-500">{item.dateRange}</span>
         </div>
       </div>
@@ -124,18 +138,21 @@ function NewsCard({ item }: { item: NewsItem }) {
   );
 }
 
-export default function NewsPanel() {
+export default function NewsPanel({ hasInjected = false }: { hasInjected?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const displayList = hasInjected ? SIMILAR_EVENTS_TOP_10 : STATIC_TOP_10;
+  const title = hasInjected ? "历史相似事件 TOP 10" : "历史事件 TOP 10";
 
   return (
     <div className="h-full flex flex-col relative z-0">
       <div className="flex items-center justify-between mb-4 mt-2 px-2 shrink-0">
-        <h3 className="text-base font-bold text-slate-200 italic tracking-wider">关键新闻事件（TOP 10）</h3>
+        <h3 className="text-base font-bold text-slate-200 italic tracking-wider">{title}</h3>
       </div>
       
       <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2 flex flex-col gap-3 relative" ref={containerRef}>
         {/* Top 10 Events Section */}
-        {STATIC_TOP_10.map((item) => (
+        {displayList.map((item) => (
           <NewsCard key={item.id} item={item} />
         ))}
       </div>

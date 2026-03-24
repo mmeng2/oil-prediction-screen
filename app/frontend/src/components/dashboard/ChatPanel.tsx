@@ -13,7 +13,7 @@ interface ChatMessage {
   };
 }
 
-export default function ChatPanel({ onInject }: { onInject?: (count: number) => void }) {
+export default function ChatPanel({ onInject, onReset }: { onInject?: (count: number) => void; onReset?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -345,8 +345,18 @@ export default function ChatPanel({ onInject }: { onInject?: (count: number) => 
         </div>
 
         {/* Input Area */}
-          <div className="p-4 border-t border-[#1e293b]/50 bg-[#0f1525]/40 shrink-0 rounded-b-2xl">
-            <div className="relative flex items-center bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-blue-900/20 rounded-full p-[1px]">
+          <div className="p-4 border-t border-[#1e293b]/50 bg-[#0f1525]/40 shrink-0 rounded-b-2xl flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (onReset) onReset();
+                setMessages([]);
+                setHistory([]);
+              }}
+              className="h-9 px-4 shrink-0 rounded-full bg-[#6c757d] flex items-center justify-center text-white hover:bg-opacity-80 transition-all text-xs font-medium"
+            >
+              重置
+            </button>
+            <div className="flex-1 relative flex items-center bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-blue-900/20 rounded-full p-[1px]">
               <div className="w-full bg-[#111827]/80 backdrop-blur-md rounded-full flex items-center pr-2 pl-1">
                   <button 
                     onClick={() => setShowForm(true)}

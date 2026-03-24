@@ -21,6 +21,10 @@ export default function DashboardPage() {
     setInjectedCount(prev => prev + count);
   };
 
+  const handleReset = () => {
+    setInjectedCount(0);
+  };
+
   // Generate fake injected predictions based on injected count
   const injectedPredictions = injectedCount > 0 ? Array.from({ length: 30 }).map((_, i) => {
     const d = new Date('2026-03-20');
@@ -64,6 +68,7 @@ export default function DashboardPage() {
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               injectedPredictions={injectedPredictions}
+              hasInjected={injectedCount > 0}
             />
           </div>
 
@@ -80,12 +85,12 @@ export default function DashboardPage() {
 
         {/* Right Section (News) */}
         <div className="w-[360px] shrink-0 rounded-xl bg-[#0f1525]/80 border border-[#1a2540] backdrop-blur-sm shadow-lg relative flex flex-col overflow-hidden">
-          <NewsPanel />
+          <NewsPanel hasInjected={injectedCount > 0} />
         </div>
       </div>
       
       {/* AI Assistant Drawer */}
-      <ChatPanel onInject={handleInject} />
+      <ChatPanel onInject={handleInject} onReset={handleReset} />
     </div>
   );
 }

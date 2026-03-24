@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { BrentDataPoint, TODAY } from './types';
+import { BrentDataPoint, TODAY, SIMILAR_EVENTS } from './types';
 import { ChevronDown } from 'lucide-react';
 
 const COLOR_REAL = '#a855f7'; // Purple
@@ -24,6 +24,7 @@ interface BrentChartProps {
   injectedPredictions: BrentDataPoint[];
   onCurveClick?: (curve: 'predict' | 'injected') => void;
   activeCurve?: 'predict' | 'injected' | null;
+  hasInjected?: boolean;
 }
 
 export default function BrentChart({
@@ -32,6 +33,7 @@ export default function BrentChart({
   onTimeRangeChange,
   viewMode,
   injectedPredictions,
+  hasInjected,
 }: BrentChartProps) {
   const chartRef = useRef<ReactECharts>(null);
   
@@ -41,6 +43,8 @@ export default function BrentChart({
   const [lowValue, setLowValue] = useState(6.93);
   const [currency, setCurrency] = useState(CURRENCIES[0]);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
+
+  const [activeEvent, setActiveEvent] = useState<number | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -261,13 +265,91 @@ export default function BrentChart({
             shadowColor: 'rgba(34, 197, 94, 0.8)',
             shadowBlur: 12
           },
+          markArea: hasInjected ? {
+            itemStyle: {
+              color: 'rgba(34, 197, 94, 0.1)'
+            },
+            label: {
+              position: 'insideTop',
+              color: '#22c55e',
+              fontSize: 14,
+              fontWeight: 'bold'
+            },
+            data: SIMILAR_EVENTS.slice(0, 10).map((evt, idx) => {
+              // 均匀分布在 todayIdx 之前的历史数据中
+              // 留出一定的边距，比如从 idx 5 开始，到 todayIdx - 5 结束
+              const startIdx = 5;
+              const endIdx = Math.max(startIdx + 10, todayIdx - 8); // 稍微离today远一点
+              const totalAvailable = endIdx - startIdx;
+              
+              // 我们有 10 个事件，计算它们在可用空间中的等距分布
+              // 为了避免太挤，每个事件间隔 step
+              const step = Math.max(2, Math.floor(totalAvailable / 10));
+              
+              const eventStartIdx = startIdx + idx * step;
+              const eventEndIdx = Math.min(eventStartIdx + 3, endIdx); // 假设事件遮罩宽度 3 个单位
+              
+              return [
+                { 
+                  name: '事件', 
+                  xAxis: eventStartIdx, 
+                  itemStyle: { color: activeEvent === evt.id ? 'rgba(34, 197, 94, 0.4)' : 'rgba(34, 197, 94, 0.2)' } 
+                },
+                { xAxis: eventEndIdx }
+              ];
+            })
+          } : undefined,
           z: 4
         }
       ]
     };
-  }, [filteredData, injectedPredictions, currency]);
+  }, [filteredData, injectedPredictions, currency, hasInjected, activeEvent]);
 
-  // Listen to dataZoom events and sync to parent
+  // Calculate coordinates for cards based on data Zoom and series
+  // Since echarts doesn't provide easy direct coordinate mapping in React outside of its instance,
+  // we can use CSS flex/absolute positioning that roughly aligns with the chart grid.
+  // Alternatively, we can let the cards float near the bottom, but position them absolutely 
+  // with left offsets based on their index.
+  
+  // To place them accurately, we'd need to convert the xAxis index to pixels.
+  // We'll use a simplified approach: position them absolutely based on percentage width.
+  const getCardStyle = (idx: number) => {
+    const todayIdx = filteredData.findIndex(d => d.date === TODAY);
+    const startIdx = 5;
+    const endIdx = Math.max(startIdx + 10, todayIdx - 8);
+    const totalAvailable = endIdx - startIdx;
+    const step = Math.max(2, Math.floor(totalAvailable / 10));
+    const eventStartIdx = startIdx + idx * step;
+    
+    // Convert to percentage of full data width, then adjust for dataZoom if needed
+    // Assuming the chart uses full width and we have padding.
+    // Calculate the total data range percentage that's visible
+    const visibleRange = timeRange[1] - timeRange[0];
+    const totalData = filteredData.length;
+    
+    // The relative position inside the visible range (0 to 1)
+    const relativePos = (eventStartIdx - timeRange[0]) / visibleRange;
+    
+    // If the card is outside the current zoom view, we might want to hide it
+    const isVisible = relativePos >= 0 && relativePos <= 1;
+    
+    // Calculate actual pixel-like percentage based on visible area
+    // Adjust slightly to position it to the right of the event start marker
+    const percent = relativePos * 100;
+    
+    // Since we added a container that already has left: 40px and right: 20px,
+     // we just need to position the card relative to this container.
+     // The relativePos gives us the exact percentage within the container.
+     
+     return {
+        left: `min(calc(${percent}% + 15px), calc(100% - 200px))`,
+        bottom: `${10 + (idx % 2) * 110}px`, // Stagger vertically to avoid overlap (2 levels)
+        opacity: isVisible ? 1 : 0,
+        pointerEvents: isVisible ? 'auto' as const : 'none' as const,
+        zIndex: activeEvent === SIMILAR_EVENTS[idx].id ? 30 : (isVisible ? 20 : -1),
+        transition: 'all 0.3s ease-in-out'
+      };
+  };
   const onEvents = useMemo(() => {
     return {
       dataZoom: (params: any) => {
@@ -370,6 +452,72 @@ export default function BrentChart({
           notMerge={false}
           lazyUpdate={true}
         />
+
+        {/* Floating Cards for Similar Events */}
+        {hasInjected && (
+          <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ top: '40px', bottom: '24px', left: '40px', right: '20px' }}>
+            {SIMILAR_EVENTS.slice(0, 10).map((evt, idx) => (
+              <div 
+                key={evt.id}
+                className={`absolute w-[180px] rounded-lg border p-2 cursor-pointer shadow-lg ${
+                  activeEvent === evt.id 
+                    ? 'border-blue-400 bg-[rgba(255,255,255,0.95)] shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-105 z-30' 
+                    : 'border-slate-200 bg-[rgba(255,255,255,0.85)] hover:border-blue-300 hover:bg-[rgba(255,255,255,0.95)] z-20'
+                }`}
+                style={{ 
+                  backdropFilter: 'blur(12px)',
+                  ...getCardStyle(idx)
+                }}
+                onMouseEnter={() => setActiveEvent(evt.id)}
+                onMouseLeave={() => setActiveEvent(null)}
+                onClick={() => {
+                  // highlight node logic: could trigger an event or just keep it active
+                  setActiveEvent(evt.id);
+                }}
+              >
+                <div className="flex justify-between items-start mb-0.5">
+                  <span className="text-[10px] font-bold text-slate-800 truncate pr-2">
+                    相似事件{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][idx]}
+                  </span>
+                  <span className="text-[10px] font-bold text-red-600 shrink-0"><span className="text-slate-500 font-normal">相似度 </span>{evt.similarity}%</span>
+                </div>
+                <div className="text-xs font-bold text-slate-900 mb-0.5 truncate">
+                  {evt.title}
+                </div>
+                <div className="text-[9px] text-slate-500 mb-1">
+                  {evt.periodStart} ~ {evt.periodEnd}
+                </div>
+                
+                {/* Mini Chart SVG */}
+                <div className="h-10 w-full mt-1 relative">
+                  <svg width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="none">
+                    {/* Actual line (green solid) */}
+                    <path 
+                      d={`M 0,${40 - (evt.chartData[0].actual / 10000) * 40} 
+                          L 33,${40 - (evt.chartData[1].actual / 10000) * 40} 
+                          L 66,${40 - (evt.chartData[2].actual / 10000) * 40} 
+                          L 100,${40 - (evt.chartData[3].actual / 10000) * 40}`} 
+                      fill="none" 
+                      stroke="#22c55e" 
+                      strokeWidth="2" 
+                    />
+                    {/* Predict line (cyan dashed) */}
+                    <path 
+                      d={`M 0,${40 - (evt.chartData[0].predicted / 10000) * 40} 
+                          L 33,${40 - (evt.chartData[1].predicted / 10000) * 40} 
+                          L 66,${40 - (evt.chartData[2].predicted / 10000) * 40} 
+                          L 100,${40 - (evt.chartData[3].predicted / 10000) * 40}`} 
+                      fill="none" 
+                      stroke="#00ffff" 
+                      strokeWidth="1.5" 
+                      strokeDasharray="3 3"
+                    />
+                  </svg>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
