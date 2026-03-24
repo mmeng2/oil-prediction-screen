@@ -238,13 +238,13 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
         {
           type: 'inside',
           xAxisIndex: [0],
-          startValue: timeRange[0],
-          endValue: timeRange[1],
+          start: timeRange[0],
+          end: timeRange[1],
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
-        moveOnMouseWheel: true
-      }
-    ],
+          moveOnMouseWheel: true
+        }
+      ],
     series: series
   };
 }, [chartData, indicator.color, timeRange, hasInjected, selectedDate, hoveredDate, viewMode]);
@@ -257,11 +257,13 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
           const echartInstance = chartRef.current.getEchartsInstance();
           const option = echartInstance.getOption() as any;
           if (option && option.dataZoom && option.dataZoom.length > 0) {
-            const startVal = option.dataZoom[0].startValue;
-            const endVal = option.dataZoom[0].endValue;
+            const startVal = option.dataZoom[0].start;
+            const endVal = option.dataZoom[0].end;
             
-            if (startVal !== timeRange[0] || endVal !== timeRange[1]) {
-              onTimeRangeChange([startVal, endVal]);
+            if (startVal !== undefined && endVal !== undefined) {
+              if (Math.abs(startVal - timeRange[0]) > 0.01 || Math.abs(endVal - timeRange[1]) > 0.01) {
+                onTimeRangeChange([startVal, endVal]);
+              }
             }
           }
         }

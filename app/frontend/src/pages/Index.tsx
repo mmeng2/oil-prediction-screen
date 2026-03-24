@@ -8,9 +8,9 @@ import { BRENT_DATA } from '@/components/dashboard/types';
 
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState('2026-03-20');
-  // Default: show ALL data (full range)
-  const [timeRange, setTimeRange] = useState<[number, number]>([0, BRENT_DATA.length - 1]);
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
+  // Default: show ALL data (full range 0-100%)
+  const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('weekly');
   const [injectedCount, setInjectedCount] = useState(0);
   const [newsMode, setNewsMode] = useState<NewsPanelMode>('hot');
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -19,8 +19,11 @@ export default function DashboardPage() {
 
   // Smart time dimension switching logic
   useEffect(() => {
-    const span = timeRange[1] - timeRange[0];
-    if (span > 30) {
+    const totalDays = BRENT_DATA.length;
+    const spanPercentage = timeRange[1] - timeRange[0];
+    const spanDays = (spanPercentage / 100) * totalDays;
+    
+    if (spanDays > 60) {
       if (viewMode !== 'weekly') setViewMode('weekly');
     } else {
       if (viewMode !== 'daily') setViewMode('daily');

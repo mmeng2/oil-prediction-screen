@@ -158,7 +158,7 @@ function generateIndicatorData(
   seed: number
 ): IndicatorDataPoint[] {
   const data: IndicatorDataPoint[] = [];
-  const startDate = new Date('2025-01-01');
+  const startDate = new Date('2025-03-01');
   const today = new Date(TODAY);
   const endDate = new Date(today);
   endDate.setDate(endDate.getDate() + DEFAULT_PREDICT_DAYS);

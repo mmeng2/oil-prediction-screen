@@ -101,9 +101,10 @@ export default function BrentChart({
 
   // Calculate high/low based on visible range and current aggregation
   useEffect(() => {
-    const start = Math.max(0, Math.floor(timeRange[0]));
-    const end = Math.min(displayData.length - 1, Math.ceil(timeRange[1]));
-    const visiblePoints = displayData.slice(start, end + 1);
+    const totalLen = displayData.length;
+    const startIdx = Math.max(0, Math.floor((timeRange[0] / 100) * totalLen));
+    const endIdx = Math.min(totalLen - 1, Math.ceil((timeRange[1] / 100) * totalLen));
+    const visiblePoints = displayData.slice(startIdx, endIdx + 1);
     
     const prices = visiblePoints.map(d => d.price).filter(p => p !== null && p !== undefined) as number[];
     const predicts = visiblePoints.map(d => d.predictPrice).filter(p => p !== null && p !== undefined) as number[];
@@ -262,15 +263,17 @@ export default function BrentChart({
           handleSize: 0,
           showDetail: false,
           showDataShadow: false,
-          startValue: timeRange[0],
-          endValue: timeRange[1],
+          start: timeRange[0],
+          end: timeRange[1],
         },
         {
           type: 'inside',
           xAxisIndex: [0],
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
-          moveOnMouseWheel: true
+          moveOnMouseWheel: true,
+          start: timeRange[0],
+          end: timeRange[1],
         }
       ],
       series: [
@@ -455,7 +458,8 @@ export default function BrentChart({
     const totalData = filteredData.length;
     
     // The relative position inside the visible range (0 to 1)
-    const relativePos = (eventStartIdx - timeRange[0]) / visibleRange;
+    const eventPosPercent = (eventStartIdx / Math.max(1, totalData - 1)) * 100;
+    const relativePos = visibleRange > 0 ? (eventPosPercent - timeRange[0]) / visibleRange : 0;
     
     // If the card is outside the current zoom view, we might want to hide it
     const isVisible = relativePos >= 0 && relativePos <= 1;
@@ -507,13 +511,14 @@ export default function BrentChart({
           const echartInstance = chartRef.current.getEchartsInstance();
           const option = echartInstance.getOption() as any;
           if (option && option.dataZoom && option.dataZoom.length > 0) {
-            const startVal = option.dataZoom[0].startValue;
-            const endVal = option.dataZoom[0].endValue;
+            const startVal = option.dataZoom[0].start;
+            const endVal = option.dataZoom[0].end;
             
             // To prevent infinite update loops, we check if the values actually changed
-            // Also, we use a small debounce/throttle approach by not updating if the change is identical
-            if (startVal !== timeRange[0] || endVal !== timeRange[1]) {
-              onTimeRangeChange([startVal, endVal]);
+            if (startVal !== undefined && endVal !== undefined) {
+              if (Math.abs(startVal - timeRange[0]) > 0.01 || Math.abs(endVal - timeRange[1]) > 0.01) {
+                onTimeRangeChange([startVal, endVal]);
+              }
             }
           }
         }
