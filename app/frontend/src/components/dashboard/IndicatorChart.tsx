@@ -8,9 +8,10 @@ interface IndicatorChartProps {
   viewMode: 'daily' | 'weekly';
   injectedPredictions: BrentDataPoint[];
   selectedDate: string;
+  hoveredDate?: string | null;
 }
 
-function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode, selectedDate }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean; viewMode: 'daily' | 'weekly'; selectedDate: string }) {
+function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode, selectedDate, hoveredDate }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean; viewMode: 'daily' | 'weekly'; selectedDate: string; hoveredDate?: string | null }) {
   // Use full data and let ECharts handle the zoom via option
   const rawData = indicator.data;
   const chartRef = useRef<ReactECharts>(null);
@@ -97,6 +98,21 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
         })
       : chartData.findIndex(d => d.date === selectedDate);
 
+    // Find index for hoveredDate for highlighting
+    const hoveredIdx = hoveredDate
+      ? (viewMode === 'weekly'
+        ? chartData.findIndex(d => {
+            const dDate = new Date(d.date);
+            const hDate = new Date(hoveredDate);
+            const mon = new Date(dDate);
+            mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
+            const sun = new Date(mon);
+            sun.setDate(mon.getDate() + 6);
+            return hDate >= mon && hDate <= sun;
+          })
+        : chartData.findIndex(d => d.date === hoveredDate))
+      : -1;
+
     const series: any[] = [
       {
         name: '历史值',
@@ -126,6 +142,11 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
             ...(selectedIdx !== -1 ? [{
               xAxis: selectedIdx,
               lineStyle: { color: '#00ffff', type: 'dashed', width: 1.5, shadowBlur: 8, shadowColor: '#00ffff' }
+            }] : []),
+            // Add highlighted vertical line for hoveredDate
+            ...(hoveredIdx !== -1 && hoveredIdx !== selectedIdx ? [{
+              xAxis: hoveredIdx,
+              lineStyle: { color: 'rgba(255, 255, 255, 0.5)', type: 'dashed', width: 1 }
             }] : [])
           ]
         },
@@ -221,12 +242,12 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
           endValue: timeRange[1],
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
-          moveOnMouseWheel: true
-        }
-      ],
-      series: series
-    };
-  }, [chartData, indicator.color, timeRange, hasInjected]);
+        moveOnMouseWheel: true
+      }
+    ],
+    series: series
+  };
+}, [chartData, indicator.color, timeRange, hasInjected, selectedDate, hoveredDate, viewMode]);
 
   // Listen to dataZoom events and sync to parent
   const onEvents = useMemo(() => {
@@ -251,7 +272,7 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
   return <ReactECharts ref={chartRef} option={option} onEvents={onEvents} style={{ height: '100%', width: '100%' }} notMerge={false} lazyUpdate={true} />;
 }
 
-export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions, viewMode, selectedDate }: IndicatorChartProps) {
+export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions, viewMode, selectedDate, hoveredDate }: IndicatorChartProps) {
   const getDesc = (key: string) => {
     const descs: Record<string, string> = {
       usd_index: '美元强弱直接影响以美元计价的原油价格',
@@ -303,7 +324,7 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
 
               {/* Chart Area */}
               <div className="flex-1 w-full min-h-0 relative z-0 -mt-2">
-                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} viewMode={viewMode} selectedDate={selectedDate} />
+                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} viewMode={viewMode} selectedDate={selectedDate} hoveredDate={hoveredDate} />
               </div>
 
               {/* Bottom Row: Description */}

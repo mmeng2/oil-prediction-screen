@@ -29,6 +29,7 @@ interface BrentChartProps {
   hasInjected?: boolean;
   onNewsModeChange?: (mode: NewsPanelMode) => void;
   selectedDate: string;
+  onHoverDateChange?: (date: string | null) => void;
 }
 
 export default function BrentChart({
@@ -40,6 +41,7 @@ export default function BrentChart({
   hasInjected,
   onNewsModeChange,
   selectedDate,
+  onHoverDateChange,
   onDateClick,
 }: BrentChartProps) {
   const chartRef = useRef<ReactECharts>(null);
@@ -515,9 +517,27 @@ export default function BrentChart({
             }
           }
         }
+      },
+      updateAxisPointer: (params: any) => {
+        if (params.axesInfo && params.axesInfo.length > 0) {
+          const xAxisInfo = params.axesInfo[0];
+          if (xAxisInfo) {
+            const index = xAxisInfo.value;
+            const dateStr = displayData[index]?.date;
+            if (dateStr) {
+              onHoverDateChange?.(dateStr);
+            }
+          }
+        }
+      },
+      globalout: () => {
+        onHoverDateChange?.(null);
+      },
+      hideTip: () => {
+        onHoverDateChange?.(null);
       }
     };
-  }, [timeRange, onTimeRangeChange]);
+  }, [timeRange, onTimeRangeChange, displayData, onHoverDateChange, onDateClick, onNewsModeChange]);
 
   return (
     <div className="h-full flex flex-col relative">

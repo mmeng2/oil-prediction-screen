@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
   const [injectedCount, setInjectedCount] = useState(0);
   const [newsMode, setNewsMode] = useState<NewsPanelMode>('hot');
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const newsPanelRef = useRef<HTMLDivElement>(null);
   const [panelHeight, setPanelHeight] = useState<number>(0);
 
@@ -100,6 +101,7 @@ export default function DashboardPage() {
               hasInjected={injectedCount > 0}
               onNewsModeChange={setNewsMode}
               selectedDate={selectedDate}
+              onHoverDateChange={setHoveredDate}
             />
           </div>
 
@@ -111,6 +113,7 @@ export default function DashboardPage() {
               viewMode={viewMode}
               injectedPredictions={injectedPredictions}
               selectedDate={selectedDate}
+              hoveredDate={hoveredDate}
             />
           </div>
         </div>
