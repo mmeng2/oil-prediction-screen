@@ -181,12 +181,12 @@ export default function NewsPanel({ mode = 'hot' }: { mode?: NewsPanelMode }) {
       </div>
 
       {/* 预测值区域 */}
-      <div className="shrink-0 p-4 border-t border-[#1a2540] bg-[#0c1220]/80 backdrop-blur-md flex items-center justify-between">
+      {/* <div className="shrink-0 p-4 border-t border-[#1a2540] bg-[#0c1220]/80 backdrop-blur-md flex items-center justify-between">
         <span className="text-sm text-slate-400">AI 最新预测价格</span>
         <div className="text-2xl font-bold text-[#00ffff]">
           72.26 <span className="text-sm font-normal">¥</span>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }

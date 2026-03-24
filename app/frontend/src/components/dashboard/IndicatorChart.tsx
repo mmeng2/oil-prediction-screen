@@ -168,7 +168,7 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
     return {
       backgroundColor: 'transparent',
       legend: {
-        show: true,
+        show: false,
         top: 0,
         right: 10,
         icon: 'circle',
