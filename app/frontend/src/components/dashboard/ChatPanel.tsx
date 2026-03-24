@@ -1,332 +1,419 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, RotateCcw, Loader2, CheckCircle2 } from 'lucide-react';
-import { createClient } from '@metagptx/web-sdk';
-import { PRESET_QUESTIONS, type NewsItem, type BrentDataPoint } from './types';
+import { Send, X, Bot, Plus, CheckCircle2, Loader2, ChevronDown, ChevronUp, BrainCircuit, Activity, Clock, Target, AlertCircle } from 'lucide-react';
 
-const client = createClient();
-const ACCENT = '#ED5214';
-
-interface ChatPanelProps {
-  onInjectNews: (news: NewsItem) => void;
-  onInjectPrediction: (point: BrentDataPoint) => void;
-  onInjectionStart: () => void;
-  onInjectionEnd: () => void;
-  onReset: () => void;
-}
-
-/** Each round of conversation: user message + generation status */
-interface ConversationRound {
-  userContent: string;
-  status: 'generating' | 'done' | 'error';
-  newsCount: number;
-}
-
-function tryParseNewsFromText(text: string, id: number): NewsItem | null {
-  const titleMatch = text.match(/(?:标题[：:]|^\d+[.、]\s*)(.*?)(?:\s*[|｜]|$)/m);
-  const sentimentMatch = text.match(/(?:情绪|影响方向|类型)[：:]\s*(利好|利空)/);
-  const changeMatch = text.match(/(?:影响|涨跌幅|变化)[：:]\s*([+-]?\d+\.?\d*%)/);
-  const sourceMatch = text.match(/(?:来源|出处)[：:]\s*(\S+)/);
-  const dateMatch = text.match(/(?:日期|时间)[：:]\s*(\d{4}[.-]\d{1,2}[.-]\d{1,2})/);
-  const summaryMatch = text.match(/(?:摘要|内容|详情)[：:]\s*(.*?)(?:\s*$)/m);
-
-  const title = titleMatch?.[1]?.trim() || text.slice(0, 30).trim();
-  if (!title || title.length < 3) return null;
-
-  const changePercent = changeMatch?.[1] || `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 4 + 0.5).toFixed(1)}%`;
-  const isPositive = changePercent.startsWith('+');
-  const sentiment: '利好' | '利空' = sentimentMatch?.[1] === '利空' ? '利空' : sentimentMatch?.[1] === '利好' ? '利好' : (isPositive ? '利好' : '利空');
-  const weight = Math.floor(Math.random() * 40) + 55;
-
-  return {
-    id: 10000 + id,
-    source: sourceMatch?.[1] || 'AI预测',
-    title,
-    date: dateMatch?.[1]?.replace(/\./g, '-') || '2026-04-01',
-    sentiment,
-    changePercent,
-    summary: summaryMatch?.[1]?.trim() || text.slice(0, 100),
-    weight,
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  isInjection?: boolean;
+  injectionData?: {
+    count: number;
+    events: { title: string; date: string; impact: string }[];
   };
 }
 
-function generatePredictionPoint(date: string, basePrice: number, sentiment: string): BrentDataPoint {
-  const impact = sentiment === '利好' ? 1 : -1;
-  const change = impact * (Math.random() * 3 + 0.5);
-  return { date, price: Math.round((basePrice + change) * 100) / 100, isPredict: true };
-}
-
-export default function ChatPanel({ onInjectNews, onInjectPrediction, onInjectionStart, onInjectionEnd, onReset }: ChatPanelProps) {
-  const [rounds, setRounds] = useState<ConversationRound[]>([]);
+export default function ChatPanel({ onInject }: { onInject?: (count: number) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [injectionProgress, setInjectionProgress] = useState(0);
+  const [thinkingExpanded, setThinkingExpanded] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [history, setHistory] = useState<{type: string, scope: string, duration: string, time: string}[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  /** Global news counter across all rounds */
-  const globalNewsIdRef = useRef(0);
-  const basePriceRef = useRef(75);
-  /** Accumulate all messages for AI context continuity */
-  const aiContextRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    type: '地缘政治',
+    scope: '全球',
+    duration: '1个月'
+  });
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [rounds]);
+  }, [messages, isTyping, isOpen, thinkingExpanded, injectionProgress]);
 
-  const handleReset = () => {
-    setRounds([]);
-    setInput('');
-    setIsLoading(false);
-    globalNewsIdRef.current = 0;
-    basePriceRef.current = 75;
-    aiContextRef.current = [];
-    onReset();
+  const handleWithdraw = (id: string) => {
+    setMessages(prev => prev.filter(m => m.id !== id));
   };
 
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return;
+  const handleEdit = (msg: ChatMessage) => {
+    setInput(msg.content);
+    handleWithdraw(msg.id);
+  };
 
-    const trimmed = content.trim();
-    const roundIndex = rounds.length;
-    let roundNewsCount = 0;
-
-    // Add new round
-    const newRound: ConversationRound = {
-      userContent: trimmed,
-      status: 'generating',
-      newsCount: 0,
+  const handleSend = (overrideInput?: string) => {
+    const textToSend = overrideInput || input;
+    if (!textToSend.trim() || isTyping) return;
+    
+    const newMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: textToSend.trim(),
+      timestamp: Date.now()
     };
-    setRounds((prev) => [...prev, newRound]);
+    
+    setMessages(prev => [...prev, newMsg]);
     setInput('');
-    setIsLoading(true);
+    setIsTyping(true);
+    setInjectionProgress(0);
+    setThinkingExpanded(true);
 
-    // Signal injection start for every round (data accumulates, not cleared)
-    onInjectionStart();
+    // Simulate progress steps
+    setTimeout(() => setInjectionProgress(1), 1000);
+    setTimeout(() => setInjectionProgress(2), 2000);
 
-    // Add user message to AI context
-    aiContextRef.current.push({ role: 'user', content: trimmed });
-
-    try {
-      // Always use the news generation system prompt so every round generates news data
-      const systemPrompt = `你是"AI预测布伦特原油"的AI助手。用户要求你模拟生成影响油价的新闻事件。
-请严格按照以下格式逐条生成，每条新闻之间用空行分隔：
-
-标题：[新闻标题]
-情绪：[利好/利空]
-影响：[+X.X%/-X.X%]
-来源：[新闻来源]
-日期：[YYYY-MM-DD]
-摘要：[50字以内的新闻摘要]
-
-请确保每条新闻都包含以上所有字段。当前日期是2026年3月20日。`;
-
-      const aiMessages = [
-        { role: 'system' as const, content: systemPrompt },
-        ...aiContextRef.current,
+    setTimeout(() => {
+      setInjectionProgress(3);
+      const count = 3;
+      
+      const fakeEvents = [
+        { title: '事件一：炼油厂遭袭击', date: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+        { title: '事件二：霍尔木兹海峡关闭', date: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+        { title: '事件三：能源设施意外事故', date: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' }
       ];
 
-      let buffer = '';
-      let fullResponse = '';
-
-      await client.ai.gentxt({
-        messages: aiMessages,
-        model: 'deepseek-v3.2',
-        stream: true,
-        onChunk: (chunk: any) => {
-          const chunkContent = chunk.content || '';
-          buffer += chunkContent;
-          fullResponse += chunkContent;
-
-          // Parse news blocks from buffer - inject into list and charts in real-time
-          const blocks = buffer.split(/\n\n+/);
-          while (blocks.length > 1) {
-            const block = blocks.shift()!;
-            if (block.includes('标题') || block.match(/^\d+[.、]/)) {
-              globalNewsIdRef.current += 1;
-              roundNewsCount += 1;
-              const newsItem = tryParseNewsFromText(block, globalNewsIdRef.current);
-              if (newsItem) {
-                onInjectNews(newsItem);
-                const predPoint = generatePredictionPoint(newsItem.date, basePriceRef.current, newsItem.sentiment);
-                basePriceRef.current = predPoint.price;
-                onInjectPrediction(predPoint);
-              }
-              // Update this round's newsCount
-              setRounds((prev) => {
-                const updated = [...prev];
-                if (updated[roundIndex]) {
-                  updated[roundIndex] = { ...updated[roundIndex], newsCount: roundNewsCount };
-                }
-                return updated;
-              });
-            }
-          }
-          buffer = blocks[0] || '';
-        },
-        onComplete: () => {
-          // Process remaining buffer
-          if (buffer.trim()) {
-            if (buffer.includes('标题') || buffer.match(/^\d+[.、]/)) {
-              globalNewsIdRef.current += 1;
-              roundNewsCount += 1;
-              const newsItem = tryParseNewsFromText(buffer, globalNewsIdRef.current);
-              if (newsItem) {
-                onInjectNews(newsItem);
-                const predPoint = generatePredictionPoint(newsItem.date, basePriceRef.current, newsItem.sentiment);
-                basePriceRef.current = predPoint.price;
-                onInjectPrediction(predPoint);
-              }
-            }
-          }
-
-          // Save assistant response to context for multi-round continuity
-          aiContextRef.current.push({ role: 'assistant', content: fullResponse });
-
-          onInjectionEnd();
-          setRounds((prev) => {
-            const updated = [...prev];
-            if (updated[roundIndex]) {
-              updated[roundIndex] = { ...updated[roundIndex], status: 'done', newsCount: roundNewsCount };
-            }
-            return updated;
-          });
-          setIsLoading(false);
-        },
-        onError: (error: any) => {
-          console.error('AI error:', error);
-          onInjectionEnd();
-          setRounds((prev) => {
-            const updated = [...prev];
-            if (updated[roundIndex]) {
-              updated[roundIndex] = { ...updated[roundIndex], status: 'error', newsCount: roundNewsCount };
-            }
-            return updated;
-          });
-          setIsLoading(false);
-        },
-        timeout: 60000,
-      });
-    } catch {
-      onInjectionEnd();
-      setRounds((prev) => {
-        const updated = [...prev];
-        if (updated[roundIndex]) {
-          updated[roundIndex] = { ...updated[roundIndex], status: 'error', newsCount: roundNewsCount };
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `已为你注入 ${count} 条明天伊朗冲突升级的模拟事件`,
+        timestamp: Date.now(),
+        isInjection: true,
+        injectionData: {
+          count,
+          events: fakeEvents
         }
-        return updated;
-      });
-      setIsLoading(false);
-    }
+      }]);
+      setIsTyping(false);
+      setThinkingExpanded(false); // Collapse thinking when done
+      
+      if (onInject) {
+        onInject(count);
+      }
+    }, 3500);
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
-  };
-
-  const hasConversation = rounds.length > 0;
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Content area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar space-y-2">
-        {!hasConversation ? (
-          <div className="space-y-1.5 sm:space-y-2 pt-1">
-            {PRESET_QUESTIONS.map((q, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(q)}
-                className="w-full text-left p-2 sm:p-2.5 rounded-lg bg-[#111827]/60 border border-[#1e293b] hover:bg-[#111827] transition-all group"
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${ACCENT}4D`)}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <img
-                    src="/assets/ai-generate-icon.png"
-                    alt="AI"
-                    className="w-4 h-4 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity"
-                  />
-                  <span className="text-[10px] sm:text-[11px] text-slate-400 group-hover:text-slate-300 truncate whitespace-nowrap overflow-hidden text-ellipsis block">
-                    {q}
-                  </span>
+    <>
+      {/* Floating Ball Entry */}
+      <div 
+        className={`fixed bottom-8 right-8 w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(59,130,246,0.5)] z-[998] transition-all duration-300 hover:scale-110 ${isOpen ? 'opacity-0 scale-0 pointer-events-none' : 'opacity-100 scale-100'}`}
+        onClick={() => setIsOpen(true)}
+      >
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center relative overflow-hidden group">
+          <div className="absolute inset-0 bg-blue-400/30 animate-ping"></div>
+          <Bot className="w-6 h-6 text-white relative z-10" />
+        </div>
+      </div>
+
+      {/* Mask (Removed) */}
+
+      {/* Floating Card */}
+      <div 
+        className={`fixed bottom-24 right-8 w-[400px] h-[600px] bg-[#0f1525]/60 backdrop-blur-xl border border-[#1e293b] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-[1000] flex flex-col transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-90 opacity-0 pointer-events-none'}`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-[#1e293b]/50 bg-[#0f1525]/40 shrink-0 rounded-t-2xl">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-white italic tracking-wide">{showForm ? '事件注入表单' : 'AI 助手'}</span>
+          </div>
+          <button onClick={() => { setIsOpen(false); setShowForm(false); }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#1e293b] text-slate-400 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {showForm ? (
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+            <div className="space-y-4 bg-[#0f1525]/60 backdrop-blur-md p-4 rounded-xl border border-[#1e293b]">
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">事件类型</label>
+                <select 
+                  value={formData.type}
+                  onChange={e => setFormData({...formData, type: e.target.value})}
+                  className="w-full bg-[#111827]/80 backdrop-blur-md border border-[#1e293b] rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+                >
+                  <option>地缘政治</option>
+                  <option>自然灾害</option>
+                  <option>经济政策</option>
+                  <option>产能调整</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">影响范围</label>
+                <select 
+                  value={formData.scope}
+                  onChange={e => setFormData({...formData, scope: e.target.value})}
+                  className="w-full bg-[#111827]/80 backdrop-blur-md border border-[#1e293b] rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+                >
+                  <option>全球</option>
+                  <option>中东地区</option>
+                  <option>北美地区</option>
+                  <option>欧洲地区</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">持续时间</label>
+                <select 
+                  value={formData.duration}
+                  onChange={e => setFormData({...formData, duration: e.target.value})}
+                  className="w-full bg-[#111827]/80 backdrop-blur-md border border-[#1e293b] rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+                >
+                  <option>1周内</option>
+                  <option>1个月</option>
+                  <option>3个月</option>
+                  <option>长期</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl space-y-2">
+              <h4 className="text-sm font-semibold text-blue-400 flex items-center gap-2">
+                <Target className="w-4 h-4" /> 预期影响预览
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                基于历史模型推演，该【{formData.type}】事件在【{formData.scope}】范围内持续【{formData.duration}】，预计将导致布伦特原油价格短期波动幅度约 <span className="text-red-400 font-bold">+2.5% ~ +4.0%</span>。
+              </p>
+            </div>
+
+            {/* History */}
+            {history.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-400 flex items-center gap-2">
+                  <Clock className="w-4 h-4" /> 最近注入记录
+                </h4>
+                <div className="space-y-2">
+                  {history.map((h, i) => (
+                    <div key={i} className="text-xs bg-[#0f1525]/60 backdrop-blur-md p-2.5 rounded-lg border border-[#1e293b] flex justify-between items-center text-slate-300">
+                      <span>{h.type} · {h.scope}</span>
+                      <span className="text-slate-500">{h.time}</span>
+                    </div>
+                  ))}
                 </div>
+              </div>
+            )}
+
+            <div className="pt-4 flex gap-3">
+              <button 
+                onClick={() => setShowForm(false)}
+                className="flex-1 py-2.5 rounded-lg border border-[#1e293b] text-slate-300 hover:bg-[#1e293b] transition-colors text-sm"
+              >
+                取消
               </button>
-            ))}
+              <button 
+                onClick={() => setShowConfirm(true)}
+                className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors text-sm font-medium"
+              >
+                生成注入事件
+              </button>
+            </div>
           </div>
         ) : (
           <>
-            {rounds.map((round, idx) => (
-              <div key={idx} className="space-y-2">
-                {/* User message */}
-                <div className="flex justify-end">
-                  <div className="max-w-[90%] px-2.5 py-1.5 rounded-lg text-[10px] sm:text-[11px] leading-relaxed bg-blue-600/20 border border-blue-500/30 text-slate-200">
-                    {round.userContent}
+            {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent" ref={scrollRef}>
+          {messages.map(msg => (
+            <div key={msg.id} className={`flex flex-col group ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed relative ${
+                msg.role === 'user' 
+                  ? 'bg-blue-600/90 backdrop-blur-md text-white rounded-tr-sm shadow-lg shadow-blue-900/20' 
+                  : 'bg-[#111827]/80 backdrop-blur-md border border-[#1e293b] text-slate-200 shadow-md rounded-tl-sm'
+              }`}>
+                {msg.content}
+                <div className={`text-[10px] mt-2 opacity-60 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+
+              {/* Actions for User Messages */}
+              {msg.role === 'user' && (Date.now() - msg.timestamp < 120000) && !isTyping && (
+                <div className="flex gap-3 text-[11px] text-slate-500 mt-1.5 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => handleEdit(msg)} className="hover:text-blue-400 transition-colors">重新编辑</button>
+                  <button onClick={() => handleWithdraw(msg.id)} className="hover:text-red-400 transition-colors">撤回</button>
+                </div>
+              )}
+
+              {/* Injection Results Rendering */}
+              {msg.role === 'assistant' && msg.isInjection && msg.injectionData && (
+                <div className="w-full mt-4 space-y-3">
+                  <div className="text-sm text-slate-300 mb-2">已为你注入 {msg.injectionData.count} 条模拟事件：</div>
+                  {msg.injectionData.events.map((evt, idx) => (
+                    <div key={idx} className="bg-[#0f1525]/80 backdrop-blur-md border border-[#1e293b] rounded-xl p-3 flex flex-col gap-2 shadow-md">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-slate-200 text-sm">{evt.title}</span>
+                        <div className="flex items-center gap-1 text-red-500 bg-red-500/10 px-2 py-0.5 rounded text-xs font-bold">
+                          <Activity className="w-3 h-3" />
+                          {evt.impact}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px] text-slate-500">
+                        <span>汇通社</span>
+                        <span>{evt.date}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing / Thinking Indicator */}
+          {isTyping && (
+            <div className="flex flex-col items-start w-full">
+              {/* Collapsible Thinking Process */}
+              <div className="max-w-[85%] rounded-2xl p-3.5 text-sm text-slate-400 bg-[#111827]/80 backdrop-blur-md border border-[#1e293b] shadow-md rounded-tl-sm flex flex-col gap-3 w-full">
+                <button 
+                  onClick={() => setThinkingExpanded(!thinkingExpanded)}
+                  className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-2 select-none"
+                >
+                  <BrainCircuit className="w-4 h-4 text-blue-400" />
+                  <span>{injectionProgress >= 3 ? '思考与分析完成' : '思考与分析中...'}</span>
+                  {thinkingExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                
+                <div className={`grid transition-all duration-300 ease-in-out ${thinkingExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                  <div className="overflow-hidden">
+                    <div className="space-y-2 mt-2 bg-[#0f1525]/80 backdrop-blur-md rounded-xl p-3 border border-[#1e293b]">
+                      <div className={`flex items-center justify-between text-xs p-2 rounded-lg transition-colors ${injectionProgress >= 1 ? 'bg-green-900/10 border border-green-500/20 text-green-400' : 'bg-[#0f1525]/60 backdrop-blur-md text-slate-500 border border-transparent'}`}>
+                        <div className="flex items-center gap-2">
+                          {injectionProgress >= 1 ? <CheckCircle2 className="w-4 h-4" /> : <Loader2 className="w-4 h-4 animate-spin" />}
+                          <span>{injectionProgress >= 1 ? '已完成' : '正在进行'} 关键词提取</span>
+                        </div>
+                        {injectionProgress >= 1 && <span className="text-slate-400">1.2s &gt;</span>}
+                      </div>
+                      
+                      <div className={`flex items-center justify-between text-xs p-2 rounded-lg transition-colors ${injectionProgress >= 2 ? 'bg-green-900/10 border border-green-500/20 text-green-400' : 'bg-[#0f1525]/60 backdrop-blur-md text-slate-500 border border-transparent'}`}>
+                        <div className="flex items-center gap-2">
+                          {injectionProgress >= 2 ? <CheckCircle2 className="w-4 h-4" /> : (injectionProgress >= 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <div className="w-4 h-4 rounded-full border border-slate-600" />)}
+                          <span>{injectionProgress >= 2 ? '已完成' : (injectionProgress >= 1 ? '正在进行' : '等待中')} 情感分析</span>
+                        </div>
+                        {injectionProgress >= 2 && <span className="text-slate-400">1.5s &gt;</span>}
+                      </div>
+                      
+                      <div className={`flex items-center justify-between text-xs p-2 rounded-lg transition-colors ${injectionProgress >= 3 ? 'bg-green-900/10 border border-green-500/20 text-green-400' : 'bg-[#0f1525]/60 backdrop-blur-md text-slate-500 border border-transparent'}`}>
+                        <div className="flex items-center gap-2">
+                          {injectionProgress >= 3 ? <CheckCircle2 className="w-4 h-4" /> : (injectionProgress >= 2 ? <Loader2 className="w-4 h-4 animate-spin" /> : <div className="w-4 h-4 rounded-full border border-slate-600" />)}
+                          <span>{injectionProgress >= 3 ? '已完成' : (injectionProgress >= 2 ? '正在进行' : '等待中')} 关联度计算</span>
+                        </div>
+                        {injectionProgress >= 3 && <span className="text-slate-400">0.8s &gt;</span>}
+                      </div>
+
+                      {/* Analysis Result Visualization (Progress Bars) */}
+                      {injectionProgress >= 3 && (
+                        <div className="mt-3 pt-3 border-t border-[#1e293b] space-y-2">
+                          <div className="text-[10px] text-slate-400 mb-2">综合影响分析</div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-300">供给侧影响</span>
+                              <span className="text-blue-400">85%</span>
+                            </div>
+                            <div className="h-1.5 bg-[#0f1525]/60 backdrop-blur-md rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full" style={{ width: '85%' }}></div>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-300">需求侧预期</span>
+                              <span className="text-purple-400">42%</span>
+                            </div>
+                            <div className="h-1.5 bg-[#0f1525]/60 backdrop-blur-md rounded-full overflow-hidden">
+                              <div className="h-full bg-purple-500 rounded-full" style={{ width: '42%' }}></div>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-300">地缘溢价</span>
+                              <span className="text-red-400">92%</span>
+                            </div>
+                            <div className="h-1.5 bg-[#0f1525]/60 backdrop-blur-md rounded-full overflow-hidden">
+                              <div className="h-full bg-red-500 rounded-full" style={{ width: '92%' }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                {/* Status indicator with event count */}
-                {round.status === 'generating' && (
-                  <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-lg border" style={{ backgroundColor: `${ACCENT}1A`, borderColor: `${ACCENT}33` }}>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: ACCENT }} />
-                    <span className="text-[10px]" style={{ color: ACCENT }}>正在生成中...</span>
-                    <span className="text-[10px] text-slate-500">已生成 {round.newsCount} 条</span>
-                  </div>
-                )}
-                {round.status === 'done' && (
-                  <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                    <span className="text-[10px] text-green-400">已完成生成</span>
-                    <span className="text-[10px] text-slate-500">共 {round.newsCount} 条事件</span>
-                  </div>
-                )}
-                {round.status === 'error' && (
-                  <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <span className="text-[10px] text-red-400">生成失败，请重试</span>
-                  </div>
-                )}
               </div>
-            ))}
+            </div>
+          )}
+        </div>
+
+        {/* Input Area */}
+          <div className="p-4 border-t border-[#1e293b]/50 bg-[#0f1525]/40 shrink-0 rounded-b-2xl">
+            <div className="relative flex items-center bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-blue-900/20 rounded-full p-[1px]">
+              <div className="w-full bg-[#111827]/80 backdrop-blur-md rounded-full flex items-center pr-2 pl-1">
+                  <button 
+                    onClick={() => setShowForm(true)}
+                    className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-blue-400 hover:bg-[#1e293b] hover:text-blue-300 transition-colors"
+                    title="打开注入表单"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="text"
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSend()}
+                    placeholder="您可以输入一些模拟事件..."
+                    className="w-full bg-transparent border-none py-3.5 pl-2 pr-10 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-0"
+                  />
+                  <button 
+                    onClick={() => handleSend()}
+                    disabled={isTyping || !input.trim()}
+                    className="w-9 h-9 shrink-0 rounded-full bg-[#1e293b] flex items-center justify-center text-slate-300 hover:bg-blue-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    <Send className="w-4 h-4 ml-0.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </>
         )}
       </div>
 
-      {/* Bottom: Input with reset button at top-right */}
-      <div className="mt-2">
-        {/* Reset button row - always visible above input */}
-        <div className="flex justify-end mb-1">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-            title="重置对话"
-          >
-            <RotateCcw className="w-2.5 h-2.5" />
-            <span className="text-[9px]">重置对话</span>
-          </button>
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-[1001] bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-[#0f1525] border border-[#1e293b] rounded-xl p-6 w-[320px] shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertCircle className="w-6 h-6 text-amber-500" />
+              <h3 className="text-lg font-bold text-white">确认注入事件</h3>
+            </div>
+            <p className="text-sm text-slate-300 mb-6">
+              您确定要注入【{formData.type}】模拟事件吗？这将影响所有预测曲线的走势。
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2 rounded-lg border border-[#1e293b] text-slate-300 hover:bg-[#1e293b] transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button 
+                onClick={() => {
+                  setShowConfirm(false);
+                  setShowForm(false);
+                  // Update history
+                  const newHist = [{ ...formData, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }, ...history].slice(0, 5);
+                  setHistory(newHist);
+                  
+                  // Auto send message
+                  handleSend(`注入一条【${formData.type}】模拟事件，范围【${formData.scope}】，持续【${formData.duration}】`);
+                }}
+                className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors text-sm font-medium"
+              >
+                确认注入
+              </button>
+            </div>
+          </div>
         </div>
-        {/* Input row */}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="试试AI注入新闻事件对预测的影响吧~"
-            disabled={isLoading}
-            className="flex-1 bg-[#111827]/80 border border-[#1e293b] rounded-lg px-3 py-2 text-[10px] sm:text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none transition-colors disabled:opacity-50"
-            onFocus={(e) => (e.currentTarget.style.borderColor = `${ACCENT}80`)}
-            onBlur={(e) => (e.currentTarget.style.borderColor = '')}
-          />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={isLoading || !input.trim()}
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-            style={{ backgroundColor: `${ACCENT}33`, border: `1px solid ${ACCENT}4D` }}
-          >
-            <Send className="w-3 h-3" style={{ color: ACCENT }} />
-          </button>
-        </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }

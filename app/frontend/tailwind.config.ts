@@ -87,10 +87,25 @@ export default {
             height: '0',
           },
         },
+        slideIn: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        highlight: {
+          '0%': { backgroundColor: 'rgba(34, 197, 94, 0.3)', borderColor: 'rgba(34, 197, 94, 0.8)' },
+          '100%': { backgroundColor: 'rgba(17, 24, 39, 0.6)', borderColor: 'rgba(30, 41, 59, 1)' },
+        },
+        marquee: {
+          '0%': { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        slideIn: 'slideIn 0.3s ease-out forwards',
+        highlight: 'highlight 1s ease-out forwards',
+        marquee: 'marquee 30s linear infinite',
       },
     },
   },

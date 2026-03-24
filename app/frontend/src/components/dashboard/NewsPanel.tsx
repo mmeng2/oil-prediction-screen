@@ -1,219 +1,151 @@
-import { useState, useEffect, useRef } from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-} from 'recharts';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { getNewsForDate, SIMILAR_EVENTS, type NewsItem, type SimilarEvent, TODAY } from './types';
+import { useState, useRef } from 'react';
+import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, FileText, BrainCircuit, Loader2 } from 'lucide-react';
 
-const ACCENT = '#ED5214';
-
-interface NewsPanelProps {
-  selectedDate: string;
-  injectedNews: NewsItem[];
-  isInjecting: boolean;
-  forcedMode?: 'history' | 'future' | 'injected' | null;
+interface NewsItem {
+  id: string;
+  title: string;
+  source: string;
+  dateRange: string;
+  impact: string;
+  bgColor?: string; // Support for specific background gradients
 }
 
-type PanelMode = 'history' | 'future' | 'injected';
+const STATIC_TOP_10: NewsItem[] = [
+  { id: '1', title: '事件一：美伊以冲突升级', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-fuchsia-900/40 to-transparent' },
+  { id: '2', title: '事件二：中东地区地缘事件', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-teal-900/40 to-transparent' },
+  { id: '3', title: '事件三：俄乌冲突持续', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-emerald-900/40 to-transparent' },
+  { id: '4', title: '事件四：胡塞武装袭击红海油轮', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: '5', title: '事件五：利比亚内战', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: '6', title: '事件六：页岩油产能波动', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: '7', title: '事件七：OPEC+减产决议', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: '8', title: '事件八：全球经济衰退', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: '9', title: '事件九：货币政策调整', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: '10', title: '事件十：航运与物流中断', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+];
 
-function getAutoMode(selectedDate: string, hasInjected: boolean): PanelMode {
-  if (hasInjected) return 'injected';
-  if (selectedDate > TODAY) return 'future';
-  return 'history';
-}
-
-function SentimentBadge({ sentiment }: { sentiment: string }) {
-  const isPositive = sentiment === '利好';
-  return (
-    <span
-      className={`px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap shrink-0 ${
-        isPositive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-      }`}
-    >
-      {isPositive ? '利好' : '利空'}
-    </span>
-  );
-}
-
-function NewsCard({ item, isNew }: { item: NewsItem; isNew?: boolean }) {
+function NewsCard({ item }: { item: NewsItem }) {
   const [expanded, setExpanded] = useState(false);
-  const isPositive = item.changePercent.startsWith('+');
-  const displaySentiment = isPositive ? '利好' : '利空';
+  const [isLoading, setIsLoading] = useState(false);
+  const [contentLoaded, setContentLoaded] = useState(false);
 
-  return (
-    <div
-      className={`p-2.5 rounded-lg border transition-all duration-500 mb-2 ${
-        isNew
-          ? 'bg-green-900/20 border-green-500/30 animate-slideIn'
-          : 'bg-[#111827]/60 border-[#1e293b] hover:border-slate-600'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <SentimentBadge sentiment={displaySentiment} />
-          <h4 className="text-xs font-medium text-slate-200 truncate whitespace-nowrap overflow-hidden text-ellipsis">{item.title}</h4>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className={`text-[10px] font-bold whitespace-nowrap ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-            {item.changePercent}
-          </span>
-          <button onClick={() => setExpanded(!expanded)} className="text-slate-500 hover:text-slate-300">
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 mt-1">
-        <span className="text-[9px] text-slate-500">{item.source}</span>
-        <span className="text-[9px] text-slate-600">{item.date}</span>
-      </div>
-      {expanded && (
-        <div className="mt-1.5 pt-1.5 border-t border-[#1e293b]">
-          <p className="text-[10px] text-slate-400 leading-relaxed">{item.summary}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SimilarEventCard({ event }: { event: SimilarEvent }) {
-  return (
-    <div className="p-2.5 rounded-lg bg-[#111827]/60 border border-[#1e293b] hover:border-slate-600 transition-all mb-2">
-      <div className="flex items-center justify-between mb-1">
-        <h4 className="text-xs font-semibold text-slate-200 truncate whitespace-nowrap overflow-hidden text-ellipsis flex-1 mr-2">{event.title}</h4>
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[9px] text-slate-400">相似度</span>
-          <span className="text-sm font-bold" style={{ color: ACCENT }}>{event.similarity}%</span>
-        </div>
-      </div>
-      <p className="text-[9px] text-slate-500 mb-1.5">
-        影响周期：{event.periodStart} ~ {event.periodEnd}
-      </p>
-      <div className="h-[70px] bg-[#0a0e1a]/50 rounded-md p-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={event.chartData} margin={{ top: 2, right: 5, left: 5, bottom: 2 }}>
-            <XAxis dataKey="week" tick={{ fill: '#64748b', fontSize: 8 }} stroke="#1e293b" />
-            <YAxis tick={{ fill: '#64748b', fontSize: 8 }} stroke="#1e293b" width={25} />
-            <Line type="monotone" dataKey="actual" stroke="#94a3b8" strokeWidth={1.5} dot={false} />
-            <Line type="monotone" dataKey="predicted" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex items-center gap-3 mt-1 justify-center">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-[1.5px] bg-slate-400 rounded" />
-          <span className="text-[8px] text-slate-500">实际走势</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-0 border-t border-dashed border-red-400" />
-          <span className="text-[8px] text-slate-500">预测走势</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function NewsPanel({ selectedDate, injectedNews, isInjecting, forcedMode }: NewsPanelProps) {
-  const autoMode = getAutoMode(selectedDate, injectedNews.length > 0);
-  // Use forced mode if provided and valid, otherwise fall back to auto mode
-  const mode: PanelMode = forcedMode && (
-    (forcedMode === 'injected' && injectedNews.length > 0) ||
-    (forcedMode === 'future' && injectedNews.length > 0) ||
-    forcedMode === 'history'
-  ) ? forcedMode : autoMode;
-  const [baseNews, setBaseNews] = useState<NewsItem[]>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
-
-  useEffect(() => {
-    if (mode === 'history') {
-      setBaseNews(getNewsForDate(selectedDate));
+  const handleToggle = () => {
+    if (!expanded && !contentLoaded) {
+      setIsLoading(true);
+      // Simulate loading detail content
+      setTimeout(() => {
+        setIsLoading(false);
+        setContentLoaded(true);
+      }, 600);
     }
-  }, [selectedDate, mode]);
-
-  // Auto-scroll to bottom when new injected news arrives
-  useEffect(() => {
-    if (mode === 'injected' && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [injectedNews.length, mode]);
-
-  // Auto-scroll carousel for non-injected modes
-  useEffect(() => {
-    if (!autoScroll || mode === 'injected') return;
-    const interval = setInterval(() => {
-      if (scrollRef.current) {
-        const el = scrollRef.current;
-        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
-          el.scrollTop = 0;
-        } else {
-          el.scrollTop += 1;
-        }
-      }
-    }, 50);
-    return () => clearInterval(interval);
-  }, [autoScroll, mode]);
-
-  const injectedDisplayNews = (() => {
-    if (mode !== 'injected') return [];
-    // Show injected news in order of arrival (most recent at bottom for scroll)
-    return [...injectedNews].slice(-10);
-  })();
-
-  const injectedIds = new Set(injectedNews.map((n) => n.id));
-
-  const titleMap: Record<PanelMode, string> = {
-    history: '关键新闻事件',
-    future: '历史相似事件',
-    injected: '注入预测事件',
+    setExpanded(!expanded);
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-slate-200 whitespace-nowrap">{titleMap[mode]}</h3>
-          {mode === 'history' && baseNews.length > 0 && (
-            <span className="text-[9px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-full">{baseNews.length}条</span>
-          )}
-          {mode === 'future' && (
-            <span className="text-[9px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-full">{SIMILAR_EVENTS.length}条</span>
-          )}
-          {mode === 'injected' && injectedDisplayNews.length > 0 && (
-            <span className="text-[9px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-full">{injectedNews.length}条</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {isInjecting && mode === 'injected' && (
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-[9px] text-green-400">注入中</span>
+    <div
+      className={`p-3 rounded-lg border transition-all duration-300 overflow-hidden ${
+        item.bgColor ? item.bgColor : 'bg-[#111827]/60'
+      } border-[#1e293b] hover:border-slate-600`}
+    >
+      {/* Header / Summary row */}
+      <div 
+        className="cursor-pointer group select-none" 
+        onClick={handleToggle}
+      >
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <h4 className={`text-sm font-semibold text-slate-200 flex-1 transition-colors ${expanded ? 'text-[#00ffff]' : 'group-hover:text-white'}`}>
+            {item.title}
+          </h4>
+          <div className={`flex items-center gap-1 shrink-0 ${item.impact.startsWith('+') ? 'text-red-500' : 'text-green-500'}`}>
+            {item.impact.startsWith('+') ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            <span className="text-xs font-bold">{item.impact}</span>
+            <div className="ml-1 text-slate-500 group-hover:text-slate-300 transition-colors">
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
-          )}
-          <span className="text-[9px] text-slate-500">{selectedDate}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-slate-500">{item.source}</span>
+          <span className="text-[11px] text-slate-500">{item.dateRange}</span>
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto no-scrollbar"
-        onMouseEnter={() => setAutoScroll(false)}
-        onMouseLeave={() => setAutoScroll(true)}
+      {/* Expanded Content Area */}
+      <div 
+        className={`grid transition-all duration-400 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-3 pt-3 border-t border-[#1e293b]' : 'grid-rows-[0fr] opacity-0'}`}
       >
-        {mode === 'future' ? (
-          SIMILAR_EVENTS.map((event) => <SimilarEventCard key={event.id} event={event} />)
-        ) : mode === 'injected' ? (
-          injectedDisplayNews.map((item) => (
-            <NewsCard key={`${item.id}-${item.title}`} item={item} isNew={injectedIds.has(item.id)} />
-          ))
-        ) : (
-          baseNews.map((item) => (
-            <NewsCard key={item.id} item={item} />
-          ))
-        )}
+        <div className="overflow-hidden">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6 text-slate-500 gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-xs">加载深度分析中...</span>
+            </div>
+          ) : contentLoaded ? (
+            <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto no-scrollbar pr-1 pb-2">
+              {/* News Detail Section */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-[#00ffff] mb-1">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold tracking-wider">事件详报</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed text-justify">
+                  据{item.source}最新报道，该事件引发了全球能源市场的广泛关注。多位分析师指出，此次变动不仅直接影响了区域内的原油供应链，更可能在未来几个季度内对全球大宗商品定价体系产生深远影响。相关利益方正在紧急磋商以应对可能出现的流动性紧缩。
+                  {/* Extra text to demonstrate inner scrolling */}
+                  <br/><br/>
+                  市场反应方面，早盘交易时段已出现明显异动。多家机构上调了避险资产的配置比例，并建议投资者密切关注后续政策走向及实际供需数据的验证。
+                </p>
+              </div>
+
+              {/* AI Analysis Section */}
+              <div className="space-y-2 bg-blue-900/10 rounded-md p-2.5 border border-blue-500/20">
+                <div className="flex items-center gap-1.5 text-blue-400 mb-1">
+                  <BrainCircuit className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold tracking-wider">AI深度分析</span>
+                </div>
+                <ul className="space-y-1.5 text-xs text-slate-300">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-blue-500 font-bold mt-0.5">•</span>
+                    <span><strong className="text-slate-200">影响评估：</strong>短期内将对布伦特原油产生 {item.impact} 的价格波动预期，主要传导路径为供给侧收缩担忧。</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-blue-500 font-bold mt-0.5">•</span>
+                    <span><strong className="text-slate-200">趋势预测：</strong>若局势在一周内未能缓解，溢价效应可能扩散至远期合约，带动整体价格曲线上移。</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-blue-500 font-bold mt-0.5">•</span>
+                    <span><strong className="text-slate-200">关联建议：</strong>建议密切关注下周三的 EIA 库存数据发布，可能会产生对冲或叠加效应。</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function NewsPanel() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div className="h-full flex flex-col relative z-0">
+      <div className="flex items-center justify-between mb-4 mt-2 px-2 shrink-0">
+        <h3 className="text-base font-bold text-slate-200 italic tracking-wider">关键新闻事件（TOP 10）</h3>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2 flex flex-col gap-3 relative" ref={containerRef}>
+        {/* Top 10 Events Section */}
+        {STATIC_TOP_10.map((item) => (
+          <NewsCard key={item.id} item={item} />
+        ))}
+      </div>
+
+      {/* 预测值区域 */}
+      <div className="shrink-0 p-4 border-t border-[#1a2540] bg-[#0c1220]/80 backdrop-blur-md flex items-center justify-between">
+        <span className="text-sm text-slate-400">AI 最新预测价格</span>
+        <div className="text-2xl font-bold text-[#00ffff]">
+          72.26 <span className="text-sm font-normal">¥</span>
+        </div>
       </div>
     </div>
   );

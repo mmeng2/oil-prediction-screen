@@ -1,39 +1,18 @@
-import { useState, useMemo, useCallback } from 'react';
-import {
-  ComposedChart,
-  Area,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts';
-import { TrendingUp, TrendingDown } from 'lucide-react';
-import { BrentDataPoint, USD_TO_CNY, TODAY, formatWeekLabel, getWeekMonday } from './types';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import ReactECharts from 'echarts-for-react';
+import { BrentDataPoint, TODAY } from './types';
+import { ChevronDown } from 'lucide-react';
 
-const ACCENT = '#ED5214';
+const COLOR_REAL = '#a855f7'; // Purple
+const COLOR_PREDICT = '#00ffff'; // Cyan
+const COLOR_INJECT = '#22c55e'; // Green
 
-function RmbIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 2v20" />
-      <path d="M6 6h12l-6 8H6" />
-      <path d="M8 18h8" />
-      <path d="M8 14h8" />
-    </svg>
-  );
-}
-
-function UsdIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
+const CURRENCIES = [
+  { code: 'CNY', symbol: '¥', rate: 1 },
+  { code: 'USD', symbol: '$', rate: 0.14 },
+  { code: 'GBP', symbol: '£', rate: 0.11 },
+  { code: 'HKD', symbol: 'HK$', rate: 1.09 },
+];
 
 interface BrentChartProps {
   data: BrentDataPoint[];
@@ -49,334 +28,348 @@ interface BrentChartProps {
 
 export default function BrentChart({
   data,
-  onDateClick,
   timeRange,
   onTimeRangeChange,
   viewMode,
-  onViewModeChange,
   injectedPredictions,
-  onCurveClick,
-  activeCurve,
 }: BrentChartProps) {
-  const [currency, setCurrency] = useState<'USD' | 'CNY'>('USD');
+  const chartRef = useRef<ReactECharts>(null);
+  
+  // Simulated real-time update
+  const [currentValue, setCurrentValue] = useState(72.26);
+  const [highValue, setHighValue] = useState(7.88);
+  const [lowValue, setLowValue] = useState(6.93);
+  const [currency, setCurrency] = useState(CURRENCIES[0]);
+  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
 
-  const filteredData = useMemo(() => {
-    const sliced = data.slice(timeRange[0], timeRange[1] + 1);
-    if (viewMode === 'weekly') {
-      const weekMap = new Map<string, BrentDataPoint[]>();
-      for (const d of sliced) {
-        const monday = getWeekMonday(d.date);
-        const key = monday.toISOString().split('T')[0];
-        if (!weekMap.has(key)) weekMap.set(key, []);
-        weekMap.get(key)!.push(d);
-      }
-      const weekly: BrentDataPoint[] = [];
-      for (const [, points] of weekMap) {
-        const avgPrice = points.reduce((s, p) => s + p.price, 0) / points.length;
-        const avgPredPrice = points.reduce((s, p) => s + (p.predictPrice ?? p.price), 0) / points.length;
-        weekly.push({
-          ...points[0],
-          price: Math.round(avgPrice * 100) / 100,
-          predictPrice: Math.round(avgPredPrice * 100) / 100,
-        } as BrentDataPoint);
-      }
-      return weekly;
-    }
-    return sliced;
-  }, [data, timeRange, viewMode]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // simulate slight price changes every 3s
+      setCurrentValue(prev => {
+        const change = (Math.random() - 0.5) * 0.5;
+        return Number((prev + change).toFixed(2));
+      });
+      setHighValue(prev => Number((prev + Math.random() * 0.1).toFixed(2)));
+      setLowValue(prev => Number((prev - Math.random() * 0.1).toFixed(2)));
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
 
-  // Build injected prediction curve
-  const injectedCurveMap = useMemo(() => {
-    if (injectedPredictions.length === 0) return new Map<string, number>();
+  // Filter and process data
+  // We no longer slice the data here, but pass the full data to ECharts 
+  // and use dataZoom to handle the timeRange filtering visually.
+  const filteredData = data;
 
-    const todayData = data.find((d) => d.date === TODAY);
-    const basePrice = todayData ? todayData.price : 75;
-
-    const futureData = data.filter((d) => d.isPredict);
-    const curveMap = new Map<string, number>();
-    const sorted = [...injectedPredictions].sort((a, b) => a.date.localeCompare(b.date));
-
-    curveMap.set(TODAY, currency === 'CNY' ? Math.round(basePrice * USD_TO_CNY * 100) / 100 : basePrice);
-
-    let runningPrice = basePrice;
-    for (const fd of futureData) {
-      const matchingEvent = sorted.find((s) => s.date === fd.date);
-      if (matchingEvent) {
-        runningPrice = matchingEvent.price;
-      } else {
-        const drift = (Math.sin(futureData.indexOf(fd) * 0.3) * 0.5);
-        runningPrice = runningPrice + drift;
-      }
-      const displayPrice = currency === 'CNY'
-        ? Math.round(runningPrice * USD_TO_CNY * 100) / 100
-        : Math.round(runningPrice * 100) / 100;
-      curveMap.set(fd.date, displayPrice);
-    }
-
-    return curveMap;
-  }, [injectedPredictions, data, currency]);
-
-  const chartData = useMemo(() => {
-    return filteredData.map((d) => {
-      const realPrice = currency === 'CNY' ? Math.round(d.price * USD_TO_CNY * 100) / 100 : d.price;
-      const predPrice = currency === 'CNY'
-        ? Math.round((d.predictPrice ?? d.price) * USD_TO_CNY * 100) / 100
-        : (d.predictPrice ?? d.price);
-      const displayDate = viewMode === 'weekly' ? formatWeekLabel(d.date) : d.date;
-
-      return {
-        date: d.date,
-        displayDate,
-        realValue: realPrice,
-        predictValue: predPrice,
-        injectedValue: injectedCurveMap.get(d.date) ?? undefined,
-      };
+  const option = useMemo(() => {
+    const dates = filteredData.map(d => {
+      // format date to MM/DD like 2026/2/28
+      const dt = new Date(d.date);
+      return `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`;
     });
-  }, [filteredData, currency, injectedCurveMap, viewMode]);
+    
+    // Split data into historical and predict
+    // Scale down by 10 to match the 5-10 Y-axis range in the design
+    const scale = 10 / currency.rate;
+    const realValues = filteredData.map(d => !d.isPredict ? Number((d.price! / scale).toFixed(2)) : null);
+    
+    // Create continuous prediction line (including historical predictions)
+    const predictValues = filteredData.map(d => {
+      // Show predictPrice if it exists, otherwise fall back to price (for future dates)
+      const val = d.predictPrice ?? d.price;
+      return val !== undefined ? Number((val / scale).toFixed(2)) : null;
+    });
+    
+    // Connect the real line to the prediction line at TODAY
+    const todayIdx = filteredData.findIndex(d => d.date === TODAY);
+    if (todayIdx !== -1 && todayIdx > 0 && realValues[todayIdx] !== null) {
+      // ensure predict line connects to real line at today
+      predictValues[todayIdx] = realValues[todayIdx];
+    }
 
-  const stats = useMemo(() => {
-    const prices = filteredData.map((d) => currency === 'CNY' ? d.price * USD_TO_CNY : d.price);
-    if (prices.length === 0) return { max: 0, min: 0, current: 0 };
-    const max = Math.max(...prices);
-    const min = Math.min(...prices);
-    const histPrices = filteredData.filter((d) => !d.isPredict).map((d) => d.price);
-    const latestHist = histPrices.length > 0 ? histPrices[histPrices.length - 1] : 0;
-    return {
-      max: Math.round(max * 100) / 100,
-      min: Math.round(min * 100) / 100,
-      current: Math.round((currency === 'CNY' ? latestHist * USD_TO_CNY : latestHist) * 100) / 100,
-    };
-  }, [filteredData, currency]);
-
-  const handleChartClick = useCallback(
-    (e: any) => {
-      if (e?.activePayload?.[0]?.payload?.date) {
-        onDateClick(e.activePayload[0].payload.date);
+    const injectedValues = filteredData.map(d => null as number | null);
+    if (injectedPredictions.length > 0) {
+      const sorted = [...injectedPredictions].sort((a, b) => a.date.localeCompare(b.date));
+      let lastVal = realValues[todayIdx] || (75 / scale);
+      injectedValues[todayIdx] = lastVal;
+      
+      for (let i = todayIdx + 1; i < filteredData.length; i++) {
+        const fd = filteredData[i];
+        const match = sorted.find(s => s.date === fd.date);
+        if (match && match.price) {
+          lastVal = match.price / scale;
+        } else {
+          lastVal += (Math.sin(i) * 0.05); // drift
+        }
+        injectedValues[i] = Number(lastVal.toFixed(2));
       }
-    },
-    [onDateClick]
-  );
+    }
 
-  const unitLabel = currency === 'USD' ? '$/桶' : '¥/桶';
-  const hasInjected = injectedPredictions.length > 0;
-  const todayDisplayLabel = viewMode === 'weekly' ? formatWeekLabel(TODAY) : TODAY;
+    return {
+      backgroundColor: 'transparent',
+      legend: {
+        show: true,
+        top: 0,
+        right: 20,
+        icon: 'circle',
+        textStyle: { color: '#94a3b8', fontSize: 12 }
+      },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#0f1525',
+        borderColor: '#1a2540',
+        textStyle: { color: '#e2e8f0' },
+        formatter: function (params: any) {
+          let res = params[0].name + '<br/>';
+          params.forEach((item: any) => {
+            if (item.value !== null && item.value !== undefined) {
+              res += item.marker + ' ' + item.seriesName + ': ' + currency.symbol + (item.value * scale).toFixed(2) + '<br/>';
+            }
+          });
+          return res;
+        }
+      },
+      grid: {
+        top: 40,
+        left: 40,
+        right: 20,
+        bottom: 30,
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLine: { lineStyle: { color: '#475569' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#64748b', fontSize: 12, margin: 15 },
+        splitLine: { show: false }
+      },
+      yAxis: {
+        type: 'value',
+        min: 'dataMin',
+        max: 'dataMax',
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { color: '#64748b', fontSize: 12 },
+        splitLine: {
+          show: true,
+          lineStyle: { color: '#1e293b', type: 'dashed' }
+        }
+      },
+      dataZoom: [
+        {
+          type: 'slider',
+          show: true,
+          xAxisIndex: [0],
+          bottom: 0,
+          height: 8,
+          borderColor: 'transparent',
+          backgroundColor: '#0f1525',
+          fillerColor: '#475569',
+          handleSize: 0,
+          showDetail: false,
+          showDataShadow: false,
+          startValue: timeRange[0],
+          endValue: timeRange[1],
+        },
+        {
+          type: 'inside',
+          xAxisIndex: [0],
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: true
+        }
+      ],
+      series: [
+        {
+          name: '真实值',
+          type: 'line',
+          data: realValues,
+          smooth: true,
+          symbol: 'none',
+          lineStyle: {
+            color: COLOR_REAL,
+            width: 3,
+            shadowColor: 'rgba(168, 85, 247, 0.5)',
+            shadowBlur: 10
+          },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(168, 85, 247, 0.2)' },
+                { offset: 1, color: 'rgba(168, 85, 247, 0)' }
+              ]
+            }
+          },
+          markLine: {
+            symbol: 'none',
+            label: { show: true, position: 'start', color: '#94a3b8', formatter: '今日' },
+            lineStyle: { color: '#64748b', type: 'dashed' },
+            data: [
+              { xAxis: todayIdx }
+            ]
+          },
+          z: 2
+        },
+        {
+          name: 'AI预测值',
+          type: 'line',
+          data: predictValues,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          itemStyle: {
+            color: COLOR_PREDICT,
+            borderColor: '#0f1525',
+            borderWidth: 2
+          },
+          lineStyle: {
+            color: COLOR_PREDICT,
+            width: 4,
+            type: 'dashed',
+            dashOffset: 5,
+            shadowColor: 'rgba(0, 255, 255, 0.8)',
+            shadowBlur: 12
+          },
+          z: 3
+        },
+        {
+          name: 'AI注入值',
+          type: 'line',
+          data: injectedValues,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          label: {
+            show: true,
+            position: 'top',
+            color: COLOR_INJECT,
+            formatter: function (params: any) {
+              return currency.symbol + (params.value * scale).toFixed(2);
+            }
+          },
+          itemStyle: {
+            color: COLOR_INJECT,
+            borderColor: '#0f1525',
+            borderWidth: 2
+          },
+          lineStyle: {
+            color: COLOR_INJECT,
+            width: 4,
+            type: 'dashed',
+            shadowColor: 'rgba(34, 197, 94, 0.8)',
+            shadowBlur: 12
+          },
+          z: 4
+        }
+      ]
+    };
+  }, [filteredData, injectedPredictions, currency]);
+
+  // Listen to dataZoom events and sync to parent
+  const onEvents = useMemo(() => {
+    return {
+      dataZoom: (params: any) => {
+        if (chartRef.current) {
+          const echartInstance = chartRef.current.getEchartsInstance();
+          const option = echartInstance.getOption() as any;
+          if (option && option.dataZoom && option.dataZoom.length > 0) {
+            const startVal = option.dataZoom[0].startValue;
+            const endVal = option.dataZoom[0].endValue;
+            
+            // To prevent infinite update loops, we check if the values actually changed
+            // Also, we use a small debounce/throttle approach by not updating if the change is identical
+            if (startVal !== timeRange[0] || endVal !== timeRange[1]) {
+              onTimeRangeChange([startVal, endVal]);
+            }
+          }
+        }
+      }
+    };
+  }, [timeRange, onTimeRangeChange]);
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header - responsive layout */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-1 px-1 gap-1 sm:gap-0">
-        {/* Stats row */}
-        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-          <span className="text-xs sm:text-sm font-semibold" style={{ color: ACCENT }}>Brent:</span>
-          <span className="text-lg sm:text-2xl font-bold text-slate-100">{stats.current}</span>
-          <span className="text-[10px] sm:text-xs text-slate-500">{unitLabel}</span>
-          <span className="flex items-center gap-1 text-[10px] sm:text-xs text-green-400">
-            <TrendingUp className="w-3 h-3" />
-            最高 {stats.max}
-          </span>
-          <span className="flex items-center gap-1 text-[10px] sm:text-xs text-red-400">
-            <TrendingDown className="w-3 h-3" />
-            最低 {stats.min}
-          </span>
-        </div>
-
-        {/* Controls row */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-          {/* Legend - hidden on very small screens, clickable when both predict & injected exist */}
-          <div className="hidden sm:flex items-center gap-3 mr-2">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-[2px] bg-blue-500 rounded" />
-              <span className="text-[9px] text-slate-500">真实值</span>
-            </div>
-            <div
-              className={`flex items-center gap-1 cursor-pointer rounded px-1 py-0.5 transition-all ${
-                hasInjected
-                  ? activeCurve === 'predict'
-                    ? 'bg-orange-500/20 ring-1 ring-orange-500/40'
-                    : 'hover:bg-slate-700/50'
-                  : ''
-              }`}
-              onClick={() => hasInjected && onCurveClick?.('predict')}
-              title={hasInjected ? '点击查看历史相似事件' : ''}
+    <div className="h-full flex flex-col relative">
+      {/* Custom Header matching design */}
+      <div className="flex items-start justify-between mb-4 z-10 relative">
+        <div className="flex items-baseline gap-4">
+          <div className="flex items-baseline gap-1 relative">
+            <span className="text-5xl font-bold text-[#00ffff]" style={{ textShadow: '0 0 20px rgba(0,255,255,0.4)' }}>
+              {(currentValue * currency.rate).toFixed(2)}
+            </span>
+            <div 
+              className="flex items-center gap-1 cursor-pointer group"
+              onClick={() => setShowCurrencySelector(!showCurrencySelector)}
             >
-              <div className="w-3 h-0 border-t-[2px] border-dashed" style={{ borderColor: ACCENT }} />
-              <span className={`text-[9px] ${activeCurve === 'predict' ? 'text-orange-300 font-semibold' : 'text-slate-500'}`}>预测值</span>
+              <span className="text-xl text-[#00ffff]">{currency.symbol}</span>
+              <ChevronDown className="w-4 h-4 text-[#00ffff] opacity-50 group-hover:opacity-100 transition-opacity" />
             </div>
-            {hasInjected && (
-              <div
-                className={`flex items-center gap-1 cursor-pointer rounded px-1 py-0.5 transition-all ${
-                  activeCurve === 'injected'
-                    ? 'bg-green-500/20 ring-1 ring-green-500/40'
-                    : 'hover:bg-slate-700/50'
-                }`}
-                onClick={() => onCurveClick?.('injected')}
-                title="点击查看注入预测事件"
-              >
-                <div className="w-3 h-0 border-t-[2px] border-dashed border-green-500" />
-                <span className={`text-[9px] ${activeCurve === 'injected' ? 'text-green-300 font-semibold' : 'text-slate-500'}`}>注入值</span>
+            
+            {showCurrencySelector && (
+              <div className="absolute top-full left-full mt-2 w-24 bg-[#0f1525]/95 border border-[#1a2540] rounded-lg shadow-xl overflow-hidden backdrop-blur-md z-50">
+                {CURRENCIES.map(c => (
+                  <div
+                    key={c.code}
+                    className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                      currency.code === c.code 
+                        ? 'bg-[#00ffff]/20 text-[#00ffff]' 
+                        : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                    onClick={() => {
+                      setCurrency(c);
+                      setShowCurrencySelector(false);
+                    }}
+                  >
+                    {c.symbol} {c.code}
+                  </div>
+                ))}
               </div>
             )}
           </div>
-
-          <button
-            onClick={() => setCurrency(currency === 'USD' ? 'CNY' : 'USD')}
-            className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all bg-slate-800/60 border border-slate-700 text-slate-300"
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${ACCENT}80`)}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
-          >
-            {currency === 'USD' ? (
-              <UsdIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            ) : (
-              <RmbIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
-            )}
-            {currency === 'USD' ? 'USD → CNY' : 'CNY → USD'}
-          </button>
-          <div className="flex rounded-md overflow-hidden border border-slate-700">
-            <button
-              onClick={() => onViewModeChange('daily')}
-              className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium transition-all ${
-                viewMode === 'daily'
-                  ? 'text-white'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'
-              }`}
-              style={viewMode === 'daily' ? { backgroundColor: `${ACCENT}33`, color: ACCENT } : {}}
-            >
-              日
-            </button>
-            <button
-              onClick={() => onViewModeChange('weekly')}
-              className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium transition-all ${
-                viewMode === 'weekly'
-                  ? 'text-white'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'
-              }`}
-              style={viewMode === 'weekly' ? { backgroundColor: `${ACCENT}33`, color: ACCENT } : {}}
-            >
-              周
-            </button>
+          <div className="flex items-center gap-4 text-sm mt-2">
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">最高</span>
+              <span className="text-red-500 font-bold">{(highValue * currency.rate).toFixed(2)}</span>
+              <span className="text-red-500 text-xs">▲</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">最低</span>
+              <span className="text-green-500 font-bold">{(lowValue * currency.rate).toFixed(2)}</span>
+              <span className="text-green-500 text-xs">▼</span>
+            </span>
           </div>
         </div>
-      </div>
-
-      {/* Chart */}
-      <div className="flex-1 min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} onClick={handleChartClick} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="histGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="predGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={ACCENT} stopOpacity={0.2} />
-                <stop offset="95%" stopColor={ACCENT} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-            <XAxis
-              dataKey="displayDate"
-              stroke="#475569"
-              tick={{ fill: '#64748b', fontSize: 9 }}
-              interval={Math.max(0, Math.floor(chartData.length / 10) - 1)}
-              angle={-30}
-              textAnchor="end"
-              height={45}
-            />
-            <YAxis
-              stroke="#475569"
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              domain={['auto', 'auto']}
-              width={50}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#0f1525',
-                border: '1px solid #1a2540',
-                borderRadius: '8px',
-                color: '#e2e8f0',
-                fontSize: '12px',
-              }}
-              formatter={(value: number, name: string) => {
-                const labels: Record<string, string> = {
-                  realValue: '真实值',
-                  predictValue: '预测值',
-                  injectedValue: '注入值',
-                };
-                return [value?.toFixed(2), labels[name] || name];
-              }}
-              labelFormatter={(label) => `日期: ${label}`}
-            />
-            <ReferenceLine
-              x={todayDisplayLabel}
-              stroke={ACCENT}
-              strokeDasharray="5 5"
-              strokeWidth={1.5}
-              label={{
-                value: '今日',
-                position: 'insideTopRight',
-                fill: ACCENT,
-                fontSize: 10,
-                offset: 5,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="realValue"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              fill="url(#histGradient)"
-              connectNulls={false}
-              dot={false}
-              activeDot={{ r: 4, fill: '#3b82f6', stroke: '#0f1525', strokeWidth: 2 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="predictValue"
-              stroke={ACCENT}
-              strokeWidth={2}
-              strokeDasharray="6 3"
-              dot={false}
-              connectNulls
-              activeDot={{ r: 4, fill: ACCENT, stroke: '#0f1525', strokeWidth: 2 }}
-            />
-            {hasInjected && (
-              <Line
-                type="monotone"
-                dataKey="injectedValue"
-                stroke="#22c55e"
-                strokeWidth={2}
-                strokeDasharray="4 2"
-                dot={false}
-                connectNulls
-                activeDot={{ r: 4, fill: '#22c55e', stroke: '#0f1525', strokeWidth: 2 }}
-              />
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Time Slider */}
-      <div className="mt-1 px-2">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <span className="text-[9px] sm:text-[10px] text-slate-600 whitespace-nowrap">
-            {data[timeRange[0]]?.date}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, data.length - 30)}
-            value={timeRange[0]}
-            onChange={(e) => {
-              const start = Number(e.target.value);
-              onTimeRangeChange([start, Math.min(start + (timeRange[1] - timeRange[0]), data.length - 1)]);
-            }}
-            className="flex-1 h-1 bg-slate-800 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full"
-            style={{ accentColor: ACCENT }}
-          />
-          <span className="text-[9px] sm:text-[10px] text-slate-600 whitespace-nowrap">
-            {data[timeRange[1]]?.date}
-          </span>
+        
+        {/* Legend */}
+        <div className="flex items-center gap-6 mt-2">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-[3px] bg-[#a855f7] shadow-[0_0_8px_#a855f7]"></div>
+            <span className="text-slate-300 text-sm">真实值</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-[3px] border-b-[3px] border-dashed border-[#00ffff] shadow-[0_0_8px_#00ffff]"></div>
+            <span className="text-slate-300 text-sm">AI预测值</span>
+          </div>
+          {injectedPredictions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-[3px] border-b-[3px] border-dashed border-[#22c55e] shadow-[0_0_8px_#22c55e]"></div>
+              <span className="text-slate-300 text-sm">AI注入值</span>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Chart Container */}
+      <div className="flex-1 min-h-0 relative z-0 -mt-8">
+        <ReactECharts
+          ref={chartRef}
+          option={option}
+          onEvents={onEvents}
+          style={{ height: '100%', width: '100%' }}
+          notMerge={false}
+          lazyUpdate={true}
+        />
       </div>
     </div>
   );

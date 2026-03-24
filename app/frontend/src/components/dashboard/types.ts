@@ -2,7 +2,7 @@
 
 export interface BrentDataPoint {
   date: string; // YYYY-MM-DD
-  price: number;
+  price?: number; // 可选字段
   isPredict: boolean;
   predictPrice?: number; // model prediction value for this date (both historical and future)
 }
@@ -93,14 +93,15 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+//解释代码：生成模拟的Brent数据，包括历史数据和未来预测数据
 function generateBrentData(): BrentDataPoint[] {
   const data: BrentDataPoint[] = [];
   const today = new Date(TODAY);
-  const startDate = new Date('2025-01-01');
-  const rand = seededRandom(42);
+  const startDate = new Date('2025-03-01');
+  const rand = seededRandom(42); // 历史数据的随机数生成器
 
-  // Generate a separate prediction random stream with a different seed
-  const predRand = seededRandom(777);
+  // 解释，生成模拟的Brent价格数据，包括历史数据和未来预测数据
+  const predRand = seededRandom(777); // 未来预测数据的随机数生成器
 
   let price = 72.5;
   let predPrice = 72.5; // prediction model starts at same base
@@ -109,31 +110,32 @@ function generateBrentData(): BrentDataPoint[] {
     const change = (rand() - 0.48) * 3.5;
     price = Math.max(55, Math.min(95, price + change));
 
-    // Prediction model: follows real price with some noise/lag
+    // 解释，生成模拟的Brent价格数据，包括历史数据和未来预测数据
     const predChange = (predRand() - 0.48) * 3.0;
-    // Prediction tends to drift toward real price but with delay
+    // 解释，预测价格会跟随真实价格，但有延迟
     predPrice = predPrice + predChange + (price - predPrice) * 0.15;
     predPrice = Math.max(55, Math.min(95, predPrice));
 
     data.push({
       date: fmtDate(current),
       price: Math.round(price * 100) / 100,
-      predictPrice: Math.round(predPrice * 100) / 100,
-      isPredict: false,
+      predictPrice: Math.round(predPrice * 100) / 100, // 历史数据的预测价格
+      isPredict: false, //历史数据
     });
-    current.setDate(current.getDate() + 1);
+    current.setDate(current.getDate() + 1); // 移动到下一个历史数据日期
   }
 
   // Prediction data (default 42 days = 6 weeks) - future dates only have prediction
+  // 生成模拟的Brent价格数据，包括历史数据和未来预测数据
   let futPredPrice = price;
-  for (let i = 1; i <= DEFAULT_PREDICT_DAYS; i++) {
+  for (let i = 1; i <= DEFAULT_PREDICT_DAYS; i++) { 
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + i);
     const change = (rand() - 0.45) * 2.8;
     futPredPrice = Math.max(55, Math.min(95, futPredPrice + change));
     data.push({
       date: fmtDate(futureDate),
-      price: Math.round(futPredPrice * 100) / 100,
+
       predictPrice: Math.round(futPredPrice * 100) / 100, // future: predict = price
       isPredict: true,
     });
@@ -195,13 +197,12 @@ function generateIndicatorData(
 }
 
 export const INDICATORS: IndicatorInfo[] = [
-  { key: 'wti', name: 'WTI', unit: 'Dollars per Barrel', color: '#f97316', data: generateIndicatorData(68, 3.2, 50, 90, 101) },
-  { key: 'usd_index', name: '美元指数', unit: 'Index', color: '#06b6d4', data: generateIndicatorData(120, 1.5, 100, 140, 102) },
-  { key: 'effr', name: 'EFFR', unit: 'Percent', color: '#a855f7', data: generateIndicatorData(4.5, 0.1, 3.0, 6.0, 103) },
-  { key: 'usd_cny', name: '美元-人民币', unit: 'CNY/USD', color: '#ec4899', data: generateIndicatorData(7.25, 0.05, 6.8, 7.6, 104) },
-  { key: 'nasdaq', name: '纳斯达克', unit: 'Index', color: '#22c55e', data: generateIndicatorData(16500, 300, 14000, 19000, 105) },
-  { key: 'sp500', name: 'S&P 500', unit: 'Index', color: '#eab308', data: generateIndicatorData(5200, 100, 4500, 6000, 106) },
-  { key: 'ovx', name: 'CBOE波动率', unit: 'Index', color: '#ef4444', data: generateIndicatorData(32, 4, 18, 55, 107) },
+  { key: 'usd_index', name: '美元指数 (DXY)', unit: '¥', color: '#eab308', data: generateIndicatorData(101.3, 1.5, 90, 110, 102) },
+  { key: 'opec', name: '欧佩克产量', unit: '¥', color: '#f97316', data: generateIndicatorData(2722.6, 50, 2500, 3000, 101) },
+  { key: 'demand', name: '全球需求指数', unit: '¥', color: '#3b82f6', data: generateIndicatorData(53.2, 2, 40, 70, 103) },
+  { key: 'wti', name: 'WTI油价', unit: '¥', color: '#06b6d4', data: generateIndicatorData(68.5, 3.2, 50, 90, 104) },
+  { key: 'effr', name: '美国有效联邦基金利率', unit: '%', color: '#a855f7', data: generateIndicatorData(4.5, 0.1, 3.0, 6.0, 105) },
+  { key: 'nasdaq', name: '纳斯达克综合指数', unit: '点', color: '#22c55e', data: generateIndicatorData(16500, 300, 14000, 19000, 106) },
 ];
 
 export const BRENT_DATA = generateBrentData();
