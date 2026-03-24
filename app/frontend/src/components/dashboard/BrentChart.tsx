@@ -358,11 +358,12 @@ export default function BrentChart({
      
      return {
         left: `min(calc(${percent}% + 15px), calc(100% - 200px))`,
-        bottom: `${10 + (idx % 2) * 110}px`, // Stagger vertically to avoid overlap (2 levels)
+        bottom: `20px`, // 一行展示
         opacity: isVisible ? 1 : 0,
         pointerEvents: isVisible ? 'auto' as const : 'none' as const,
-        zIndex: activeEvent === SIMILAR_EVENTS[idx].id ? 30 : (isVisible ? 20 : -1),
-        transition: 'all 0.3s ease-in-out'
+        zIndex: activeEvent === SIMILAR_EVENTS[idx].id ? 50 : (isVisible ? 20 + idx : -1), // active时最前面
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transformOrigin: 'bottom left',
       };
   };
   const onEvents = useMemo(() => {
@@ -474,10 +475,10 @@ export default function BrentChart({
             {SIMILAR_EVENTS.slice(0, 10).map((evt, idx) => (
               <div 
                 key={evt.id}
-                className={`absolute w-[180px] rounded-lg border p-2 cursor-pointer shadow-lg ${
+                className={`absolute rounded-xl border p-2 cursor-pointer shadow-lg group ${
                   activeEvent === evt.id 
-                    ? 'border-blue-400 bg-[rgba(255,255,255,0.95)] shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-105 z-30' 
-                    : 'border-slate-200 bg-[rgba(255,255,255,0.85)] hover:border-blue-300 hover:bg-[rgba(255,255,255,0.95)] z-20'
+                    ? 'w-[240px] border-blue-400 bg-[linear-gradient(90deg,rgba(158,197,225,0.95)_0%,rgba(158,197,225,0.85)_100%)] shadow-[0_8px_32px_rgba(0,0,0,0.4)] scale-150 z-50' 
+                    : 'w-[180px] border-slate-300/50 bg-[linear-gradient(90deg,rgba(158,197,225,0.15)_0%,rgba(158,197,225,0.08)_100%)] hover:border-blue-300/50 hover:bg-[linear-gradient(90deg,rgba(158,197,225,0.25)_0%,rgba(158,197,225,0.15)_100%)] z-20 hover:z-30'
                 }`}
                 style={{ 
                   backdropFilter: 'blur(12px)',
@@ -491,15 +492,17 @@ export default function BrentChart({
                 }}
               >
                 <div className="flex justify-between items-start mb-0.5">
-                  <span className="text-[10px] font-bold text-slate-800 truncate pr-2">
+                  <span className={`text-[10px] font-bold truncate pr-2 transition-colors ${activeEvent === evt.id ? 'text-slate-900' : 'text-slate-300 group-hover:text-slate-200'}`}>
                     相似事件{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][idx]}
                   </span>
-                  <span className="text-[10px] font-bold text-red-600 shrink-0"><span className="text-slate-500 font-normal">相似度 </span>{evt.similarity}%</span>
+                  <span className={`text-[10px] font-bold shrink-0 transition-colors ${activeEvent === evt.id ? 'text-red-600' : 'text-red-400 group-hover:text-red-500'}`}>
+                    <span className={`font-normal transition-colors ${activeEvent === evt.id ? 'text-slate-600' : 'text-slate-400 group-hover:text-slate-300'}`}>相似度 </span>{evt.similarity}%
+                  </span>
                 </div>
-                <div className="text-xs font-bold text-slate-900 mb-0.5 truncate">
+                <div className={`text-xs font-bold mb-0.5 truncate transition-colors ${activeEvent === evt.id ? 'text-slate-900' : 'text-slate-200 group-hover:text-white'}`}>
                   {evt.title}
                 </div>
-                <div className="text-[9px] text-slate-500 mb-1">
+                <div className={`text-[9px] mb-1 transition-colors ${activeEvent === evt.id ? 'text-slate-600' : 'text-slate-400 group-hover:text-slate-300'}`}>
                   {evt.periodStart} ~ {evt.periodEnd}
                 </div>
                 
