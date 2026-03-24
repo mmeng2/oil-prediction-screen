@@ -7,9 +7,10 @@ interface IndicatorChartProps {
   onTimeRangeChange: (range: [number, number]) => void;
   viewMode: 'daily' | 'weekly';
   injectedPredictions: BrentDataPoint[];
+  selectedDate: string;
 }
 
-function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean; viewMode: 'daily' | 'weekly' }) {
+function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode, selectedDate }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean; viewMode: 'daily' | 'weekly'; selectedDate: string }) {
   // Use full data and let ECharts handle the zoom via option
   const rawData = indicator.data;
   const chartRef = useRef<ReactECharts>(null);
@@ -83,6 +84,19 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
       predictValues[todayIdx] = realValues[todayIdx];
     }
 
+    // Find index for selectedDate for highlighting
+    const selectedIdx = viewMode === 'weekly'
+      ? chartData.findIndex(d => {
+          const dDate = new Date(d.date);
+          const sDate = new Date(selectedDate);
+          const mon = new Date(dDate);
+          mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
+          const sun = new Date(mon);
+          sun.setDate(mon.getDate() + 6);
+          return sDate >= mon && sDate <= sun;
+        })
+      : chartData.findIndex(d => d.date === selectedDate);
+
     const series: any[] = [
       {
         name: '历史值',
@@ -107,7 +121,12 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
           label: { show: false },
           lineStyle: { color: '#64748b', type: 'dashed' },
           data: [
-            { xAxis: todayIdx }
+            { xAxis: todayIdx },
+            // Add highlighted vertical line for selectedDate
+            ...(selectedIdx !== -1 ? [{
+              xAxis: selectedIdx,
+              lineStyle: { color: '#00ffff', type: 'dashed', width: 1.5, shadowBlur: 8, shadowColor: '#00ffff' }
+            }] : [])
           ]
         },
       },
@@ -230,7 +249,7 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
   return <ReactECharts ref={chartRef} option={option} onEvents={onEvents} style={{ height: '100%', width: '100%' }} notMerge={false} lazyUpdate={true} />;
 }
 
-export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions, viewMode }: IndicatorChartProps) {
+export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions, viewMode, selectedDate }: IndicatorChartProps) {
   const getDesc = (key: string) => {
     const descs: Record<string, string> = {
       usd_index: '美元强弱直接影响以美元计价的原油价格',
@@ -282,7 +301,7 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
 
               {/* Chart Area */}
               <div className="flex-1 w-full min-h-0 relative z-0 -mt-2">
-                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} viewMode={viewMode} />
+                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} viewMode={viewMode} selectedDate={selectedDate} />
               </div>
 
               {/* Bottom Row: Description */}

@@ -28,6 +28,7 @@ interface BrentChartProps {
   activeCurve?: 'predict' | 'injected' | null;
   hasInjected?: boolean;
   onNewsModeChange?: (mode: NewsPanelMode) => void;
+  selectedDate: string;
 }
 
 export default function BrentChart({
@@ -38,6 +39,8 @@ export default function BrentChart({
   injectedPredictions,
   hasInjected,
   onNewsModeChange,
+  selectedDate,
+  onDateClick,
 }: BrentChartProps) {
   const chartRef = useRef<ReactECharts>(null);
   
@@ -77,6 +80,22 @@ export default function BrentChart({
 
   // Determine which data to show based on viewMode
   const displayData = viewMode === 'weekly' ? weeklyData : data;
+
+  // Find index for selectedDate for highlighting
+  const selectedIdx = useMemo(() => {
+    if (viewMode === 'weekly') {
+      return displayData.findIndex(d => {
+        const dDate = new Date(d.date);
+        const sDate = new Date(selectedDate);
+        const mon = new Date(dDate);
+        mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        return sDate >= mon && sDate <= sun;
+      });
+    }
+    return displayData.findIndex(d => d.date === selectedDate);
+  }, [displayData, viewMode, selectedDate]);
 
   // Calculate high/low based on visible range and current aggregation
   useEffect(() => {
@@ -258,7 +277,17 @@ export default function BrentChart({
           type: 'line',
           data: realValues,
           smooth: true,
-          symbol: 'none',
+          symbol: 'circle',
+          symbolSize: (val: any, params: any) => {
+            return params.dataIndex === selectedIdx ? 12 : 0;
+          },
+          itemStyle: {
+            color: COLOR_REAL,
+            borderColor: '#fff',
+            borderWidth: 2,
+            shadowColor: COLOR_REAL,
+            shadowBlur: 10
+          },
           lineStyle: {
             color: COLOR_REAL,
             width: 2,
@@ -296,7 +325,13 @@ export default function BrentChart({
             label: { show: true, position: 'start', color: '#94a3b8', formatter: '今日' },
             lineStyle: { color: '#64748b', type: 'dashed' },
             data: [
-              { xAxis: todayIdx }
+              { xAxis: todayIdx },
+              // Add vertical highlight line for selectedDate
+              ...(selectedIdx !== -1 ? [{
+                xAxis: selectedIdx,
+                lineStyle: { color: '#00ffff', type: 'dashed', width: 1.5, shadowBlur: 8, shadowColor: '#00ffff' },
+                label: { show: false }
+              }] : [])
             ]
           },
           z: 2
@@ -306,11 +341,16 @@ export default function BrentChart({
           type: 'line',
           data: predictValues,
           smooth: true,
-          symbol: 'none',
+          symbol: 'circle',
+          symbolSize: (val: any, params: any) => {
+            return params.dataIndex === selectedIdx ? 12 : 0;
+          },
           itemStyle: {
             color: COLOR_PREDICT,
-            borderColor: '#0f1525',
-            borderWidth: 2
+            borderColor: '#fff',
+            borderWidth: 2,
+            shadowColor: COLOR_PREDICT,
+            shadowBlur: 10
           },
           lineStyle: {
             color: COLOR_PREDICT,
@@ -328,14 +368,15 @@ export default function BrentChart({
           data: injectedValues,
           smooth: true,
           symbol: 'circle',
-          symbolSize: 6,
-          label: {
-            show: false, // 去掉折线上的数值展示
+          symbolSize: (val: any, params: any) => {
+            return params.dataIndex === selectedIdx ? 12 : 6;
           },
           itemStyle: {
             color: COLOR_INJECT,
-            borderColor: '#0f1525',
-            borderWidth: 2
+            borderColor: (params: any) => params.dataIndex === selectedIdx ? '#fff' : '#0f1525',
+            borderWidth: 2,
+            shadowColor: COLOR_INJECT,
+            shadowBlur: (params: any) => params.dataIndex === selectedIdx ? 10 : 0
           },
           lineStyle: {
             color: COLOR_INJECT,
@@ -382,7 +423,7 @@ export default function BrentChart({
         }
       ]
     };
-  }, [filteredData, injectedPredictions, currency, hasInjected, activeEvent]);
+  }, [filteredData, injectedPredictions, currency, hasInjected, activeEvent, selectedIdx]);
 
   // Calculate coordinates for cards based on data Zoom and series
   // Since echarts doesn't provide easy direct coordinate mapping in React outside of its instance,
@@ -433,13 +474,24 @@ export default function BrentChart({
   const onEvents = useMemo(() => {
     return {
       click: (params: any) => {
-        if (params.componentType === 'series' && onNewsModeChange) {
-          if (params.seriesName === '真实值') {
-            onNewsModeChange('hot');
-          } else if (params.seriesName === 'AI预测值') {
-            onNewsModeChange('key');
-          } else if (params.seriesName === 'AI注入值') {
-            onNewsModeChange('similar');
+        if (params.componentType === 'series') {
+          // If a data point was clicked, call onDateClick
+          if (params.dataIndex !== undefined) {
+            const clickedData = filteredData[params.dataIndex];
+            if (clickedData) {
+              onDateClick(clickedData.date);
+            }
+          }
+
+          // Handle news mode switching
+          if (onNewsModeChange) {
+            if (params.seriesName === '真实值') {
+              onNewsModeChange('hot');
+            } else if (params.seriesName === 'AI预测值') {
+              onNewsModeChange('key');
+            } else if (params.seriesName === 'AI注入值') {
+              onNewsModeChange('similar');
+            }
           }
         }
       },

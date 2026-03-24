@@ -99,6 +99,7 @@ export default function DashboardPage() {
               injectedPredictions={injectedPredictions}
               hasInjected={injectedCount > 0}
               onNewsModeChange={setNewsMode}
+              selectedDate={selectedDate}
             />
           </div>
 
@@ -109,6 +110,7 @@ export default function DashboardPage() {
               onTimeRangeChange={setTimeRange}
               viewMode={viewMode}
               injectedPredictions={injectedPredictions}
+              selectedDate={selectedDate}
             />
           </div>
         </div>
