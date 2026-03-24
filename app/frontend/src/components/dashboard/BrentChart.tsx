@@ -83,6 +83,42 @@ export default function BrentChart({
   // Determine which data to show based on viewMode
   const displayData = viewMode === 'weekly' ? weeklyData : data;
 
+  // Stable random positions for 5 similar events in the left area of today
+  const eventIndices = useMemo(() => {
+    const todayIdx = displayData.findIndex(d => {
+      const dDate = new Date(d.date);
+      const tDate = new Date(TODAY);
+      if (viewMode === 'weekly') {
+        const mon = new Date(dDate);
+        mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        return tDate >= mon && tDate <= sun;
+      }
+      return d.date === TODAY;
+    });
+
+    const startIdx = 5;
+    const endIdx = Math.max(startIdx + 10, todayIdx - 10);
+    const totalAvailable = endIdx - startIdx;
+    
+    const count = 5;
+    const positions: number[] = [];
+    
+    // Divide into segments and pick random-looking but stable offsets
+    const segmentSize = totalAvailable / count;
+    // Fixed random-looking seeds for 5 events
+    const seeds = [0.23, 0.67, 0.15, 0.88, 0.42];
+    
+    for (let i = 0; i < count; i++) {
+      const segmentStart = startIdx + i * segmentSize;
+      const offset = seeds[i] * (segmentSize * 0.7); // Leave some gap
+      positions.push(Math.floor(segmentStart + offset));
+    }
+    
+    return positions;
+  }, [displayData, viewMode]);
+
   // Find index for selectedDate for highlighting
   const selectedIdx = useMemo(() => {
     if (viewMode === 'weekly') {
@@ -225,10 +261,10 @@ export default function BrentChart({
       },
       grid: {
         top: 40,
-        left: 40,
+        left: 60,
         right: 20,
         bottom: 30,
-        containLabel: true
+        containLabel: false
       },
       xAxis: {
         type: 'category',
@@ -405,19 +441,9 @@ export default function BrentChart({
               fontSize: 14,
               fontWeight: 'bold'
             },
-            data: SIMILAR_EVENTS.slice(0, 10).map((evt, idx) => {
-              // 均匀分布在 todayIdx 之前的历史数据中
-              // 留出一定的边距，比如从 idx 5 开始，到 todayIdx - 5 结束
-              const startIdx = 5;
-              const endIdx = Math.max(startIdx + 10, todayIdx - 8); // 稍微离today远一点
-              const totalAvailable = endIdx - startIdx;
-              
-              // 我们有 10 个事件，计算它们在可用空间中的等距分布
-              // 为了避免太挤，每个事件间隔 step
-              const step = Math.max(1, Math.floor(totalAvailable / 10));
-              
-              const eventStartIdx = startIdx + idx * step;
-              const eventEndIdx = Math.min(eventStartIdx + (viewMode === 'weekly' ? 1 : 3), endIdx); // 聚合模式下遮罩宽度缩小
+            data: SIMILAR_EVENTS.slice(0, 5).map((evt, idx) => {
+              const eventStartIdx = eventIndices[idx];
+              const eventEndIdx = Math.min(eventStartIdx + (viewMode === 'weekly' ? 1 : 3), displayData.length - 1);
               
               return [
                 { 
@@ -444,43 +470,35 @@ export default function BrentChart({
   // To place them accurately, we'd need to convert the xAxis index to pixels.
   // We'll use a simplified approach: position them absolutely based on percentage width.
   const getCardStyle = (idx: number) => {
-    const todayIdx = filteredData.findIndex(d => d.date === TODAY);
-    const startIdx = 5;
-    const endIdx = Math.max(startIdx + 10, todayIdx - 8);
-    const totalAvailable = endIdx - startIdx;
-    const step = Math.max(2, Math.floor(totalAvailable / 10));
-    const eventStartIdx = startIdx + idx * step;
+    const eventStartIdx = eventIndices[idx];
     
-    // Convert to percentage of full data width, then adjust for dataZoom if needed
-    // Assuming the chart uses full width and we have padding.
-    // Calculate the total data range percentage that's visible
-    const visibleRange = timeRange[1] - timeRange[0];
-    const totalData = filteredData.length;
+    // ECharts category axis with dataZoom uses indices.
+    // If viewMode is weekly, displayData.length is much smaller than BRENT_DATA.length.
+    // We must ensure we use indices relative to the current displayData.
+    const start = timeRange[0];
+    const end = Math.min(timeRange[1], displayData.length - 1);
+    const visibleCount = end - start + 1;
     
     // The relative position inside the visible range (0 to 1)
-    const eventPosPercent = (eventStartIdx / Math.max(1, totalData - 1)) * 100;
-    const relativePos = visibleRange > 0 ? (eventPosPercent - timeRange[0]) / visibleRange : 0;
+    const relativePos = (eventStartIdx - start) / visibleCount;
     
     // If the card is outside the current zoom view, we might want to hide it
-    const isVisible = relativePos >= 0 && relativePos <= 1;
+    const isVisible = relativePos >= -0.05 && relativePos <= 1.05;
     
     // Calculate actual pixel-like percentage based on visible area
-    // Adjust slightly to position it to the right of the event start marker
     const percent = relativePos * 100;
     
-    // Since we added a container that already has left: 40px and right: 20px,
-     // we just need to position the card relative to this container.
-     // The relativePos gives us the exact percentage within the container.
-     
-     return {
-        left: `min(calc(${percent}% + 15px), calc(100% - 200px))`,
-        bottom: `20px`, // 一行展示
-        opacity: isVisible ? 1 : 0,
-        pointerEvents: isVisible ? 'auto' as const : 'none' as const,
-        zIndex: activeEvent === SIMILAR_EVENTS[idx].id ? 50 : (isVisible ? 20 + idx : -1), // active时最前面
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        transformOrigin: 'bottom left',
-      };
+    // Since we added a container that already has left: 60px and right: 20px,
+    // we just need to position the card relative to this container.
+    return {
+      left: `${percent}%`,
+      bottom: `20px`,
+      opacity: isVisible ? 1 : 0,
+      pointerEvents: isVisible ? 'auto' as const : 'none' as const,
+      zIndex: activeEvent === SIMILAR_EVENTS[idx].id ? 50 : (isVisible ? 20 + idx : -1),
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transformOrigin: 'bottom left',
+    };
   };
   const onEvents = useMemo(() => {
     return {
@@ -627,6 +645,7 @@ export default function BrentChart({
       {/* Chart Container */}
       <div className="flex-1 min-h-0 relative z-0 -mt-8">
         <ReactECharts
+          key={viewMode}
           ref={chartRef}
           option={option}
           onEvents={onEvents}
@@ -637,8 +656,8 @@ export default function BrentChart({
 
         {/* Floating Cards for Similar Events */}
         {hasInjected && (
-          <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ top: '40px', bottom: '24px', left: '40px', right: '20px' }}>
-            {SIMILAR_EVENTS.slice(0, 10).map((evt, idx) => (
+          <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ top: '40px', bottom: '24px', left: '60px', right: '20px' }}>
+            {SIMILAR_EVENTS.slice(0, 5).map((evt, idx) => (
               <div 
                 key={evt.id}
                 className={`absolute rounded-xl border p-2 cursor-pointer shadow-lg group ${
