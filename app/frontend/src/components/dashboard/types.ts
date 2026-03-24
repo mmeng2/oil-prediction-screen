@@ -457,7 +457,7 @@ export function getNewsForDate(date: string): NewsItem[] {
 export const SIMILAR_EVENTS: SimilarEvent[] = [
   {
     id: 1, title: '美以伊冲突升级', similarity: 90,
-    periodStart: '2024/03/12', periodEnd: '2024/04/12',
+    periodStart: '2025/03/04', periodEnd: '2025/03/08',
     chartData: [
       { week: 'W1', actual: 800, predicted: 600 },
       { week: 'W2', actual: 5500, predicted: 8000 },
@@ -467,7 +467,7 @@ export const SIMILAR_EVENTS: SimilarEvent[] = [
   },
   {
     id: 2, title: '法国道达尔能源', similarity: 70,
-    periodStart: '2024/03/12', periodEnd: '2024/04/12',
+    periodStart: '2025/04/08', periodEnd: '2025/04/12',
     chartData: [
       { week: 'W1', actual: 500, predicted: 400 },
       { week: 'W2', actual: 4000, predicted: 7000 },
@@ -477,7 +477,7 @@ export const SIMILAR_EVENTS: SimilarEvent[] = [
   },
   {
     id: 3, title: '霍尔木兹海峡航运受阻', similarity: 50,
-    periodStart: '2024/03/12', periodEnd: '2024/04/12',
+    periodStart: '2025/05/18', periodEnd: '2025/05/21',
     chartData: [
       { week: 'W1', actual: 300, predicted: 500 },
       { week: 'W2', actual: 6000, predicted: 9000 },
@@ -487,7 +487,7 @@ export const SIMILAR_EVENTS: SimilarEvent[] = [
   },
   {
     id: 4, title: '俄乌冲突能源制裁', similarity: 45,
-    periodStart: '2022/02/24', periodEnd: '2022/03/24',
+    periodStart: '2025/06/27', periodEnd: '2025/06/30',
     chartData: [
       { week: 'W1', actual: 1200, predicted: 1000 },
       { week: 'W2', actual: 7000, predicted: 8500 },
@@ -497,7 +497,7 @@ export const SIMILAR_EVENTS: SimilarEvent[] = [
   },
   {
     id: 5, title: 'OPEC+突然减产', similarity: 40,
-    periodStart: '2023/04/02', periodEnd: '2023/05/02',
+    periodStart: '2025/08/02', periodEnd: '2025/08/05',
     chartData: [
       { week: 'W1', actual: 600, predicted: 800 },
       { week: 'W2', actual: 3500, predicted: 5000 },
