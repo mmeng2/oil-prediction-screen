@@ -192,7 +192,7 @@ export default function BrentChart({
           symbol: 'none',
           lineStyle: {
             color: COLOR_REAL,
-            width: 3,
+            width: 2,
             shadowColor: 'rgba(168, 85, 247, 0.5)',
             shadowBlur: 10
           },
@@ -206,6 +206,22 @@ export default function BrentChart({
               ]
             }
           },
+          markPoint: todayIdx !== -1 && realValues[todayIdx] !== null ? {
+            data: [
+              {
+                coord: [todayIdx, realValues[todayIdx]],
+                symbol: 'circle',
+                symbolSize: 12,
+                itemStyle: {
+                  color: COLOR_REAL,
+                  borderColor: '#fff',
+                  borderWidth: 2,
+                  shadowColor: COLOR_REAL,
+                  shadowBlur: 12
+                }
+              }
+            ]
+          } : undefined,
           markLine: {
             symbol: 'none',
             label: { show: true, position: 'start', color: '#94a3b8', formatter: '今日' },
@@ -221,8 +237,7 @@ export default function BrentChart({
           type: 'line',
           data: predictValues,
           smooth: true,
-          symbol: 'circle',
-          symbolSize: 6,
+          symbol: 'none',
           itemStyle: {
             color: COLOR_PREDICT,
             borderColor: '#0f1525',

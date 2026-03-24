@@ -200,11 +200,12 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
   const getDesc = (key: string) => {
     const descs: Record<string, string> = {
       usd_index: '美元强弱直接影响以美元计价的原油价格',
-      opec: '产量决策对供给端的核心影响',
-      demand: '全球经济活动与能源消费需求综合指标',
-      wti: '美国原油市场基准价格',
-      effr: '反映宏观流动性与经济预期',
-      nasdaq: '科技与风险资产情绪风向标'
+      sp500: '全球经济活动与能源消费需求综合指标',
+      usd_cny: '全球经济活动与能源消费需求综合指标',
+      wti: '美元强弱直接影响以美元计价的原油价格',
+      effr: '产量决策对供给端的核心影响',
+      nasdaq: '全球经济活动与能源消费需求综合指标',
+      cboe_etf: '全球经济活动与能源消费需求综合指标'
     };
     return descs[key] || '';
   };

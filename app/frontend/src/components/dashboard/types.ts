@@ -197,12 +197,13 @@ function generateIndicatorData(
 }
 
 export const INDICATORS: IndicatorInfo[] = [
-  { key: 'usd_index', name: '美元指数 (DXY)', unit: '¥', color: '#eab308', data: generateIndicatorData(101.3, 1.5, 90, 110, 102) },
-  { key: 'opec', name: '欧佩克产量', unit: '¥', color: '#f97316', data: generateIndicatorData(2722.6, 50, 2500, 3000, 101) },
-  { key: 'demand', name: '全球需求指数', unit: '¥', color: '#3b82f6', data: generateIndicatorData(53.2, 2, 40, 70, 103) },
-  { key: 'wti', name: 'WTI油价', unit: '¥', color: '#06b6d4', data: generateIndicatorData(68.5, 3.2, 50, 90, 104) },
-  { key: 'effr', name: '美国有效联邦基金利率', unit: '%', color: '#a855f7', data: generateIndicatorData(4.5, 0.1, 3.0, 6.0, 105) },
-  { key: 'nasdaq', name: '纳斯达克综合指数', unit: '点', color: '#22c55e', data: generateIndicatorData(16500, 300, 14000, 19000, 106) },
+  { key: 'usd_index', name: '美元指数 (DXY)', unit: 'Index', color: '#eab308', data: generateIndicatorData(101.3, 1.5, 90, 110, 102) },
+  { key: 'sp500', name: '标普500', unit: 'Index', color: '#3b82f6', data: generateIndicatorData(5621.89, 50, 5000, 6000, 101) },
+  { key: 'usd_cny', name: '美元-人民币汇率', unit: 'USD/CNY', color: '#a855f7', data: generateIndicatorData(53.2, 0.5, 50.0, 55.0, 103) },
+  { key: 'wti', name: 'WTI油价', unit: 'CNY/bbl', color: '#ef4444', data: generateIndicatorData(101.3, 3.2, 80, 120, 104) },
+  { key: 'effr', name: '美国:有效联邦基金利率', unit: '%', color: '#f97316', data: generateIndicatorData(2722.6, 50, 2500, 3000, 105) },
+  { key: 'nasdaq', name: '纳斯达克综合指数', unit: 'Index', color: '#06b6d4', data: generateIndicatorData(18256.34, 300, 14000, 19000, 106) },
+  { key: 'cboe_etf', name: 'CBOE原油ETF波动率指数', unit: 'Index', color: '#8b5cf6', data: generateIndicatorData(56.34, 2, 40, 80, 107) },
 ];
 
 export const BRENT_DATA = generateBrentData();
