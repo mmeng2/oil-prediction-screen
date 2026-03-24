@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { INDICATORS, type IndicatorInfo, type BrentDataPoint, TODAY } from './types';
+import { INDICATORS, type IndicatorInfo, type BrentDataPoint, TODAY, type IndicatorDataPoint } from './types';
 
 interface IndicatorChartProps {
   timeRange: [number, number];
@@ -9,20 +9,65 @@ interface IndicatorChartProps {
   injectedPredictions: BrentDataPoint[];
 }
 
-function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean }) {
+function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean; viewMode: 'daily' | 'weekly' }) {
   // Use full data and let ECharts handle the zoom via option
-  const chartData = indicator.data;
+  const rawData = indicator.data;
   const chartRef = useRef<ReactECharts>(null);
 
+  // Group daily data into weekly averages if needed
+  const chartData = useMemo(() => {
+    if (viewMode === 'daily') return rawData;
+    
+    const weeks: IndicatorDataPoint[] = [];
+    let currentWeek: IndicatorDataPoint[] = [];
+    
+    rawData.forEach((d, i) => {
+      currentWeek.push(d);
+      const date = new Date(d.date);
+      if (date.getDay() === 0 || i === rawData.length - 1) {
+        const values = currentWeek.map(w => w.value).filter(v => v !== null) as number[];
+        const predicts = currentWeek.map(w => w.predictValue).filter(v => v !== null && v !== undefined) as number[];
+        
+        weeks.push({
+          date: d.date,
+          value: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
+          predictValue: predicts.length > 0 ? predicts.reduce((a, b) => a + b, 0) / predicts.length : undefined,
+          isPredict: currentWeek.every(w => w.isPredict)
+        });
+        currentWeek = [];
+      }
+    });
+    return weeks;
+  }, [rawData, viewMode]);
+
   const option = useMemo(() => {
-    // Format dates to match main chart (YYYY/MM/DD)
+    // Format dates to match main chart (YYYY/MM/DD or MM/DD-MM/DD)
     const dates = chartData.map(d => {
       const dt = new Date(d.date);
+      if (viewMode === 'weekly') {
+        const mon = new Date(dt);
+        mon.setDate(dt.getDate() - (dt.getDay() === 0 ? 6 : dt.getDay() - 1));
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        return `${mon.getMonth() + 1}/${mon.getDate()}-${sun.getMonth() + 1}/${sun.getDate()}`;
+      }
       return `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`;
     });
     
     // realValues should only exist before or on TODAY
-    const todayIdx = chartData.findIndex(d => d.date === TODAY);
+    // In weekly mode, today is the week containing TODAY
+    const todayIdx = viewMode === 'weekly' 
+      ? chartData.findIndex(d => {
+          const dDate = new Date(d.date);
+          const tDate = new Date(TODAY);
+          const mon = new Date(dDate);
+          mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
+          const sun = new Date(mon);
+          sun.setDate(mon.getDate() + 6);
+          return tDate >= mon && tDate <= sun;
+        })
+      : chartData.findIndex(d => d.date === TODAY);
+
     const realValues = chartData.map((d, i) => {
       if (todayIdx !== -1 && i > todayIdx) return null; // No real values after today
       return !d.isPredict ? d.value : null;
@@ -65,17 +110,6 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected }: { i
             { xAxis: todayIdx }
           ]
         },
-        markArea: {
-          itemStyle: {
-            color: 'rgba(255, 255, 255, 0.05)'
-          },
-          data: [
-            [
-              { xAxis: todayIdx > 15 ? todayIdx - 15 : 0 },
-              { xAxis: todayIdx }
-            ]
-          ]
-        }
       },
       {
         name: '预测值',
@@ -196,7 +230,7 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected }: { i
   return <ReactECharts ref={chartRef} option={option} onEvents={onEvents} style={{ height: '100%', width: '100%' }} notMerge={false} lazyUpdate={true} />;
 }
 
-export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions }: IndicatorChartProps) {
+export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions, viewMode }: IndicatorChartProps) {
   const getDesc = (key: string) => {
     const descs: Record<string, string> = {
       usd_index: '美元强弱直接影响以美元计价的原油价格',
@@ -248,7 +282,7 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
 
               {/* Chart Area */}
               <div className="flex-1 w-full min-h-0 relative z-0 -mt-2">
-                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} />
+                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} viewMode={viewMode} />
               </div>
 
               {/* Bottom Row: Description */}

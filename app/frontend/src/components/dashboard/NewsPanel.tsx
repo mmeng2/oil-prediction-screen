@@ -11,17 +11,30 @@ interface NewsItem {
   isSimilar?: boolean;
 }
 
-const STATIC_TOP_10: NewsItem[] = [
-  { id: '1', title: '事件一：美伊以冲突升级', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-fuchsia-900/40 to-transparent' },
-  { id: '2', title: '事件二：中东地区地缘事件', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-teal-900/40 to-transparent' },
-  { id: '3', title: '事件三：俄乌冲突持续', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-emerald-900/40 to-transparent' },
-  { id: '4', title: '事件四：胡塞武装袭击红海油轮', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: '5', title: '事件五：利比亚内战', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: '6', title: '事件六：页岩油产能波动', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: '7', title: '事件七：OPEC+减产决议', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: '8', title: '事件八：全球经济衰退', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: '9', title: '事件九：货币政策调整', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: '10', title: '事件十：航运与物流中断', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+const TODAY_HOT_TOP_10: NewsItem[] = [
+  { id: 'h1', title: '今日热点一：全球能源需求激增', source: '财联社', dateRange: '2026/03/24', impact: '+1.2%', bgColor: 'bg-gradient-to-r from-red-900/40 to-transparent' },
+  { id: 'h2', title: '今日热点二：中东局势再度紧张', source: '新华社', dateRange: '2026/03/24', impact: '+0.8%', bgColor: 'bg-gradient-to-r from-orange-900/40 to-transparent' },
+  { id: 'h3', title: '今日热点三：新能源技术突破', source: '科技日报', dateRange: '2026/03/24', impact: '-0.5%', bgColor: 'bg-gradient-to-r from-blue-900/40 to-transparent' },
+  { id: 'h4', title: '今日热点四：OPEC会议结果超预期', source: '路透社', dateRange: '2026/03/24', impact: '+2.1%' },
+  { id: 'h5', title: '今日热点五：全球航运费上涨', source: '航运周刊', dateRange: '2026/03/24', impact: '+0.3%' },
+  { id: 'h6', title: '今日热点六：美联储货币政策转向', source: '华尔街日报', dateRange: '2026/03/24', impact: '-0.2%' },
+  { id: 'h7', title: '今日热点七：页岩油产量创新高', source: '能源资讯', dateRange: '2026/03/24', impact: '-0.7%' },
+  { id: 'h8', title: '今日热点八：碳中和政策加速推进', source: '环境报', dateRange: '2026/03/24', impact: '-0.4%' },
+  { id: 'h9', title: '今日热点九：新兴市场能源需求回升', source: '经济观察', dateRange: '2026/03/24', impact: '+0.6%' },
+  { id: 'h10', title: '今日热点十：原油库存意外下降', source: 'EIA', dateRange: '2026/03/24', impact: '+1.5%' },
+];
+
+const KEY_NEWS_TOP_10: NewsItem[] = [
+  { id: 'k1', title: '关键新闻一：美伊以冲突升级', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-fuchsia-900/40 to-transparent' },
+  { id: 'k2', title: '关键新闻二：中东地区地缘事件', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-teal-900/40 to-transparent' },
+  { id: 'k3', title: '关键新闻三：俄乌冲突持续', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%', bgColor: 'bg-gradient-to-r from-emerald-900/40 to-transparent' },
+  { id: 'k4', title: '关键新闻四：胡塞武装袭击红海油轮', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k5', title: '关键新闻五：利比亚内战', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k6', title: '关键新闻六：页岩油产能波动', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k7', title: '关键新闻七：OPEC+减产决议', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k8', title: '关键新闻八：全球经济衰退', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k9', title: '关键新闻九：货币政策调整', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k10', title: '关键新闻十：航运与物流中断', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
 ];
 
 const SIMILAR_EVENTS_TOP_10: NewsItem[] = [
@@ -138,11 +151,21 @@ function NewsCard({ item }: { item: NewsItem }) {
   );
 }
 
-export default function NewsPanel({ hasInjected = false }: { hasInjected?: boolean }) {
+export type NewsPanelMode = 'hot' | 'key' | 'similar';
+
+export default function NewsPanel({ mode = 'hot' }: { mode?: NewsPanelMode }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const displayList = hasInjected ? SIMILAR_EVENTS_TOP_10 : STATIC_TOP_10;
-  const title = hasInjected ? "历史相似事件 TOP 10" : "历史事件 TOP 10";
+  const getDisplayData = () => {
+    switch (mode) {
+      case 'hot': return { title: '今日热点新闻 TOP 10', list: TODAY_HOT_TOP_10 };
+      case 'key': return { title: '关键新闻事件 TOP 10', list: KEY_NEWS_TOP_10 };
+      case 'similar': return { title: '历史相似事件 TOP 10', list: SIMILAR_EVENTS_TOP_10 };
+      default: return { title: '今日热点新闻 TOP 10', list: TODAY_HOT_TOP_10 };
+    }
+  };
+
+  const { title, list } = getDisplayData();
 
   return (
     <div className="h-full flex flex-col relative z-0">
@@ -152,7 +175,7 @@ export default function NewsPanel({ hasInjected = false }: { hasInjected?: boole
       
       <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2 flex flex-col gap-3 relative" ref={containerRef}>
         {/* Top 10 Events Section */}
-        {displayList.map((item) => (
+        {list.map((item) => (
           <NewsCard key={item.id} item={item} />
         ))}
       </div>

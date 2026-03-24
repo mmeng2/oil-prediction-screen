@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import TopNav from '@/components/dashboard/TopNav';
 import BrentChart from '@/components/dashboard/BrentChart';
 import IndicatorChart from '@/components/dashboard/IndicatorChart';
-import NewsPanel from '@/components/dashboard/NewsPanel';
+import NewsPanel, { NewsPanelMode } from '@/components/dashboard/NewsPanel';
 import ChatPanel from '@/components/dashboard/ChatPanel';
 import { BRENT_DATA } from '@/components/dashboard/types';
 
@@ -12,6 +12,32 @@ export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<[number, number]>([0, BRENT_DATA.length - 1]);
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
   const [injectedCount, setInjectedCount] = useState(0);
+  const [newsMode, setNewsMode] = useState<NewsPanelMode>('hot');
+  const newsPanelRef = useRef<HTMLDivElement>(null);
+  const [panelHeight, setPanelHeight] = useState<number>(0);
+
+  // Smart time dimension switching logic
+  useEffect(() => {
+    const span = timeRange[1] - timeRange[0];
+    if (span > 30) {
+      if (viewMode !== 'weekly') setViewMode('weekly');
+    } else {
+      if (viewMode !== 'daily') setViewMode('daily');
+    }
+  }, [timeRange, viewMode]);
+
+  useEffect(() => {
+    if (newsPanelRef.current) {
+      setPanelHeight(newsPanelRef.current.offsetHeight);
+    }
+    const observer = new ResizeObserver(() => {
+      if (newsPanelRef.current) {
+        setPanelHeight(newsPanelRef.current.offsetHeight);
+      }
+    });
+    if (newsPanelRef.current) observer.observe(newsPanelRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const handleDateClick = (date: string) => {
     setSelectedDate(date);
@@ -19,10 +45,13 @@ export default function DashboardPage() {
 
   const handleInject = (count: number) => {
     setInjectedCount(prev => prev + count);
+    // Automatically switch to similar news when injecting
+    setNewsMode('similar');
   };
 
   const handleReset = () => {
     setInjectedCount(0);
+    setNewsMode('hot');
   };
 
   // Generate fake injected predictions based on injected count
@@ -69,6 +98,7 @@ export default function DashboardPage() {
               onViewModeChange={setViewMode}
               injectedPredictions={injectedPredictions}
               hasInjected={injectedCount > 0}
+              onNewsModeChange={setNewsMode}
             />
           </div>
 
@@ -84,13 +114,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Right Section (News) */}
-        <div className="w-[360px] shrink-0 rounded-xl bg-[#0f1525]/80 border border-[#1a2540] backdrop-blur-sm shadow-lg relative flex flex-col overflow-hidden">
-          <NewsPanel hasInjected={injectedCount > 0} />
+        <div ref={newsPanelRef} className="w-[360px] shrink-0 rounded-xl bg-[#0f1525]/80 border border-[#1a2540] backdrop-blur-sm shadow-lg relative flex flex-col overflow-hidden">
+          <NewsPanel mode={newsMode} />
         </div>
       </div>
       
       {/* AI Assistant Drawer */}
-      <ChatPanel onInject={handleInject} onReset={handleReset} />
+      <ChatPanel onInject={handleInject} onReset={handleReset} containerHeight={panelHeight} />
     </div>
   );
 }

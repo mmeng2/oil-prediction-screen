@@ -3,6 +3,8 @@ import ReactECharts from 'echarts-for-react';
 import { BrentDataPoint, TODAY, SIMILAR_EVENTS } from './types';
 import { ChevronDown } from 'lucide-react';
 
+import { NewsPanelMode } from './NewsPanel';
+
 const COLOR_REAL = '#a855f7'; // Purple
 const COLOR_PREDICT = '#00ffff'; // Cyan
 const COLOR_INJECT = '#22c55e'; // Green
@@ -25,6 +27,7 @@ interface BrentChartProps {
   onCurveClick?: (curve: 'predict' | 'injected') => void;
   activeCurve?: 'predict' | 'injected' | null;
   hasInjected?: boolean;
+  onNewsModeChange?: (mode: NewsPanelMode) => void;
 }
 
 export default function BrentChart({
@@ -34,6 +37,7 @@ export default function BrentChart({
   viewMode,
   injectedPredictions,
   hasInjected,
+  onNewsModeChange,
 }: BrentChartProps) {
   const chartRef = useRef<ReactECharts>(null);
   
@@ -45,6 +49,50 @@ export default function BrentChart({
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
 
   const [activeEvent, setActiveEvent] = useState<number | null>(null);
+
+  // Group daily data into weekly averages
+  const weeklyData = useMemo(() => {
+    const weeks: { date: string; price: number | null; predictPrice: number | null; isPredict: boolean }[] = [];
+    let currentWeek: BrentDataPoint[] = [];
+    
+    data.forEach((d, i) => {
+      currentWeek.push(d);
+      // If Sunday or last item, aggregate
+      const date = new Date(d.date);
+      if (date.getDay() === 0 || i === data.length - 1) {
+        const prices = currentWeek.map(w => w.price).filter(p => p !== undefined && p !== null) as number[];
+        const predicts = currentWeek.map(w => w.predictPrice).filter(p => p !== undefined && p !== null) as number[];
+        
+        weeks.push({
+          date: d.date, // use the last day of week as label
+          price: prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : null,
+          predictPrice: predicts.length > 0 ? predicts.reduce((a, b) => a + b, 0) / predicts.length : null,
+          isPredict: currentWeek.every(w => w.isPredict)
+        });
+        currentWeek = [];
+      }
+    });
+    return weeks;
+  }, [data]);
+
+  // Determine which data to show based on viewMode
+  const displayData = viewMode === 'weekly' ? weeklyData : data;
+
+  // Calculate high/low based on visible range and current aggregation
+  useEffect(() => {
+    const start = Math.max(0, Math.floor(timeRange[0]));
+    const end = Math.min(displayData.length - 1, Math.ceil(timeRange[1]));
+    const visiblePoints = displayData.slice(start, end + 1);
+    
+    const prices = visiblePoints.map(d => d.price).filter(p => p !== null && p !== undefined) as number[];
+    const predicts = visiblePoints.map(d => d.predictPrice).filter(p => p !== null && p !== undefined) as number[];
+    const allVals = [...prices, ...predicts];
+    
+    if (allVals.length > 0) {
+      setHighValue(Math.max(...allVals));
+      setLowValue(Math.min(...allVals));
+    }
+  }, [displayData, timeRange, viewMode]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -62,29 +110,50 @@ export default function BrentChart({
   // Filter and process data
   // We no longer slice the data here, but pass the full data to ECharts 
   // and use dataZoom to handle the timeRange filtering visually.
-  const filteredData = data;
+  const filteredData = displayData;
 
   const option = useMemo(() => {
     const dates = filteredData.map(d => {
       // format date to MM/DD like 2026/2/28
       const dt = new Date(d.date);
+      if (viewMode === 'weekly') {
+        // Show week range for weekly mode
+        const monday = new Date(dt);
+        monday.setDate(dt.getDate() - (dt.getDay() === 0 ? 6 : dt.getDay() - 1));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        return `${monday.getMonth() + 1}/${monday.getDate()}-${sunday.getMonth() + 1}/${sunday.getDate()}`;
+      }
       return `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`;
     });
     
     // Split data into historical and predict
     // Scale down by 10 to match the 5-10 Y-axis range in the design
     const scale = 10 / currency.rate;
-    const realValues = filteredData.map(d => !d.isPredict ? Number((d.price! / scale).toFixed(2)) : null);
+    const realValues = filteredData.map(d => !d.isPredict ? (d.price !== null ? Number((d.price! / scale).toFixed(2)) : null) : null);
     
     // Create continuous prediction line (including historical predictions)
     const predictValues = filteredData.map(d => {
       // Show predictPrice if it exists, otherwise fall back to price (for future dates)
       const val = d.predictPrice ?? d.price;
-      return val !== undefined ? Number((val / scale).toFixed(2)) : null;
+      return val !== null && val !== undefined ? Number((val / scale).toFixed(2)) : null;
     });
     
     // Connect the real line to the prediction line at TODAY
-    const todayIdx = filteredData.findIndex(d => d.date === TODAY);
+    // For weekly mode, today is in the week containing TODAY
+    const todayIdx = viewMode === 'weekly' 
+      ? filteredData.findIndex(d => {
+          const dDate = new Date(d.date);
+          const tDate = new Date(TODAY);
+          // Find the week that contains TODAY
+          const mon = new Date(dDate);
+          mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
+          const sun = new Date(mon);
+          sun.setDate(mon.getDate() + 6);
+          return tDate >= mon && tDate <= sun;
+        })
+      : filteredData.findIndex(d => d.date === TODAY);
+
     if (todayIdx !== -1 && todayIdx > 0 && realValues[todayIdx] !== null) {
       // ensure predict line connects to real line at today
       predictValues[todayIdx] = realValues[todayIdx];
@@ -111,7 +180,7 @@ export default function BrentChart({
     return {
       backgroundColor: 'transparent',
       legend: {
-        show: true,
+        show: false, // 去掉图中多余的圆点图例
         top: 0,
         right: 20,
         icon: 'circle',
@@ -261,12 +330,7 @@ export default function BrentChart({
           symbol: 'circle',
           symbolSize: 6,
           label: {
-            show: true,
-            position: 'top',
-            color: COLOR_INJECT,
-            formatter: function (params: any) {
-              return currency.symbol + (params.value * scale).toFixed(2);
-            }
+            show: false, // 去掉折线上的数值展示
           },
           itemStyle: {
             color: COLOR_INJECT,
@@ -299,10 +363,10 @@ export default function BrentChart({
               
               // 我们有 10 个事件，计算它们在可用空间中的等距分布
               // 为了避免太挤，每个事件间隔 step
-              const step = Math.max(2, Math.floor(totalAvailable / 10));
+              const step = Math.max(1, Math.floor(totalAvailable / 10));
               
               const eventStartIdx = startIdx + idx * step;
-              const eventEndIdx = Math.min(eventStartIdx + 3, endIdx); // 假设事件遮罩宽度 3 个单位
+              const eventEndIdx = Math.min(eventStartIdx + (viewMode === 'weekly' ? 1 : 3), endIdx); // 聚合模式下遮罩宽度缩小
               
               return [
                 { 
@@ -368,6 +432,17 @@ export default function BrentChart({
   };
   const onEvents = useMemo(() => {
     return {
+      click: (params: any) => {
+        if (params.componentType === 'series' && onNewsModeChange) {
+          if (params.seriesName === '真实值') {
+            onNewsModeChange('hot');
+          } else if (params.seriesName === 'AI预测值') {
+            onNewsModeChange('key');
+          } else if (params.seriesName === 'AI注入值') {
+            onNewsModeChange('similar');
+          }
+        }
+      },
       dataZoom: (params: any) => {
         if (chartRef.current) {
           const echartInstance = chartRef.current.getEchartsInstance();
@@ -441,16 +516,25 @@ export default function BrentChart({
         
         {/* Legend */}
         <div className="flex items-center gap-6 mt-2">
-          <div className="flex items-center gap-2">
+          <div 
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onNewsModeChange?.('hot')}
+          >
             <div className="w-4 h-[3px] bg-[#a855f7] shadow-[0_0_8px_#a855f7]"></div>
             <span className="text-slate-300 text-sm">真实值</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div 
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onNewsModeChange?.('key')}
+          >
             <div className="w-4 h-[3px] border-b-[3px] border-dashed border-[#00ffff] shadow-[0_0_8px_#00ffff]"></div>
             <span className="text-slate-300 text-sm">AI预测值</span>
           </div>
           {injectedPredictions.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div 
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => onNewsModeChange?.('similar')}
+            >
               <div className="w-4 h-[3px] border-b-[3px] border-dashed border-[#22c55e] shadow-[0_0_8px_#22c55e]"></div>
               <span className="text-slate-300 text-sm">AI注入值</span>
             </div>
