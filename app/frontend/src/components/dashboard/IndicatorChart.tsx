@@ -161,7 +161,9 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
           color: '#22c55e',
           width: 2,
           type: 'dashed'
-        }
+        },
+        animationDuration: 3000,
+        animationEasing: 'cubicOut'
       });
     }
 

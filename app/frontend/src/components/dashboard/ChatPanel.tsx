@@ -115,26 +115,53 @@ export default function ChatPanel({
         },
       ];
 
+      const assistantMsgId = Date.now().toString();
+      
+      // Add empty assistant message first
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now().toString(),
+          id: assistantMsgId,
           role: "assistant",
-          content: `已为你注入 ${count} 条明天伊朗冲突升级的模拟事件`,
+          content: `正在为您生成模拟事件并注入模型...`,
           timestamp: Date.now(),
           isInjection: true,
           injectionData: {
-            count,
-            events: fakeEvents,
+            count: 0,
+            events: [],
           },
         },
       ]);
-      setIsTyping(false);
-      setThinkingExpanded(false); // Collapse thinking when done
 
-      if (onInject) {
-        onInject(count);
-      }
+      // Add events one by one with delay
+      fakeEvents.forEach((evt, index) => {
+        setTimeout(() => {
+          setMessages((prev) => prev.map(m => {
+            if (m.id === assistantMsgId && m.injectionData) {
+              return {
+                ...m,
+                content: `已为您注入 ${index + 1} 条明天伊朗冲突升级的模拟事件`,
+                injectionData: {
+                  ...m.injectionData,
+                  count: index + 1,
+                  events: [...m.injectionData.events, evt]
+                }
+              };
+            }
+            return m;
+          }));
+
+          if (onInject) {
+            onInject(1); // Inject 1 event at a time to Index.tsx
+          }
+
+          if (index === fakeEvents.length - 1) {
+            setIsTyping(false);
+            setThinkingExpanded(false);
+          }
+        }, (index + 1) * 1200); // 1.2s delay per event
+      });
+
     }, 3500);
   };
 
@@ -395,7 +422,7 @@ export default function ChatPanel({
                             {msg.injectionData.events.map((evt, idx) => (
                               <div
                                 key={idx}
-                                className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3.5 flex flex-col gap-2.5 shadow-xl transition-all hover:bg-white/10"
+                                className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3.5 flex flex-col gap-2.5 shadow-xl transition-all hover:bg-white/10 animate-slideIn"
                               >
                                 <div className="flex justify-between items-start gap-2">
                                   <span className="font-semibold text-slate-100 text-[13px] leading-snug">

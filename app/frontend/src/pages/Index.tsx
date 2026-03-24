@@ -45,8 +45,8 @@ export default function DashboardPage() {
 
   const handleInject = (count: number) => {
     setInjectedCount(prev => prev + count);
-    // Automatically switch to similar news when injecting
-    setNewsMode('similar');
+    // Automatically switch to similar news when injecting (only if not already there)
+    setNewsMode(prev => prev === 'similar' ? prev : 'similar');
   };
 
   const handleReset = () => {

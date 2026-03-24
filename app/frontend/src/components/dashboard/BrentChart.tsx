@@ -275,6 +275,7 @@ export default function BrentChart({
         {
           name: '真实值',
           type: 'line',
+          triggerLineEvent: true,
           data: realValues,
           smooth: true,
           symbol: 'circle',
@@ -339,6 +340,7 @@ export default function BrentChart({
         {
           name: 'AI预测值',
           type: 'line',
+          triggerLineEvent: true,
           data: predictValues,
           smooth: true,
           symbol: 'circle',
@@ -365,6 +367,7 @@ export default function BrentChart({
         {
           name: 'AI注入值',
           type: 'line',
+          triggerLineEvent: true,
           data: injectedValues,
           smooth: true,
           symbol: 'circle',
@@ -385,6 +388,8 @@ export default function BrentChart({
             shadowColor: 'rgba(34, 197, 94, 0.8)',
             shadowBlur: 12
           },
+          animationDuration: 3000,
+          animationEasing: 'cubicOut',
           markArea: hasInjected ? {
             itemStyle: {
               color: 'rgba(34, 197, 94, 0.1)'
