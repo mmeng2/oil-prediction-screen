@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     lambda_function_name: str = "fastapi-backend"
     aws_region: str = "us-east-1"
 
+    # AI Configuration
+    ai_provider: str = "openai"
+    ai_mock_enabled: bool = False
+
     @property
     def backend_url(self) -> str:
         """Generate backend URL from host and port."""

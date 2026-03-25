@@ -6,6 +6,8 @@ from typing import Optional
 from core.auth import AccessTokenError, decode_access_token
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from models.auth import User
+from repositories.user import UserRepository
 from schemas.auth import UserResponse
 
 logger = logging.getLogger(__name__)
@@ -29,7 +31,6 @@ async def get_current_user(token: str = Depends(get_bearer_token)) -> UserRespon
     try:
         payload = decode_access_token(token)
     except AccessTokenError as exc:
-        # Log error type only, not the full exception which may contain sensitive token data
         logger.warning("Token validation failed: %s", type(exc).__name__)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message)
 
@@ -43,7 +44,6 @@ async def get_current_user(token: str = Depends(get_bearer_token)) -> UserRespon
         try:
             last_login = datetime.fromisoformat(last_login_raw)
         except ValueError:
-            # Log user hash instead of actual user ID to avoid exposing sensitive information
             user_hash = hashlib.sha256(str(user_id).encode()).hexdigest()[:8] if user_id else "unknown"
             logger.debug("Failed to parse last_login for user hash: %s", user_hash)
 
@@ -61,3 +61,25 @@ async def get_admin_user(current_user: UserResponse = Depends(get_current_user))
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
+
+
+async def get_current_user_from_repo(
+    request: Request,
+    user_repo: UserRepository = Depends(),
+) -> User:
+    """Get current user from repository."""
+    token = await get_bearer_token(request)
+    try:
+        payload = decode_access_token(token)
+    except AccessTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message)
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token")
+
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return user
