@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
+import React from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, FileText, BrainCircuit, Loader2 } from 'lucide-react';
 
 interface NewsItem {
@@ -7,15 +8,20 @@ interface NewsItem {
   source?: string;
   dateRange: string;
   impact: string;
-  bgColor?: string; // Support for specific background gradients
+  bgColor?: string;
   isSimilar?: boolean;
+}
+
+interface NewsContent {
+  detail: string;
+  analysis: Array<{ label: string; content: string }>;
 }
 
 const TODAY_HOT_TOP_10: NewsItem[] = [
   { id: 'h1', title: '今日热点一：全球能源需求激增', source: '财联社', dateRange: '2026/03/24', impact: '+1.2%', bgColor: 'bg-gradient-to-r from-red-900/40 to-transparent' },
   { id: 'h2', title: '今日热点二：中东局势再度紧张', source: '新华社', dateRange: '2026/03/24', impact: '+0.8%', bgColor: 'bg-gradient-to-r from-orange-900/40 to-transparent' },
   { id: 'h3', title: '今日热点三：新能源技术突破', source: '科技日报', dateRange: '2026/03/24', impact: '-0.5%', bgColor: 'bg-gradient-to-r from-blue-900/40 to-transparent' },
-  { id: 'h4', title: '今日热点四：OPEC会议结果超预期', source: '路透社', dateRange: '2026/03/24', impact: '+2.1%' },
+  { id: 'h4', title: '今日热点四：OPEC 会议结果超预期', source: '路透社', dateRange: '2026/03/24', impact: '+2.1%' },
   { id: 'h5', title: '今日热点五：全球航运费上涨', source: '航运周刊', dateRange: '2026/03/24', impact: '+0.3%' },
   { id: 'h6', title: '今日热点六：美联储货币政策转向', source: '华尔街日报', dateRange: '2026/03/24', impact: '-0.2%' },
   { id: 'h7', title: '今日热点七：页岩油产量创新高', source: '能源资讯', dateRange: '2026/03/24', impact: '-0.7%' },
@@ -31,7 +37,7 @@ const KEY_NEWS_TOP_10: NewsItem[] = [
   { id: 'k4', title: '关键新闻四：胡塞武装袭击红海油轮', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: 'k5', title: '关键新闻五：利比亚内战', source: 'Oilprice', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: 'k6', title: '关键新闻六：页岩油产能波动', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
-  { id: 'k7', title: '关键新闻七：OPEC+减产决议', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
+  { id: 'k7', title: '关键新闻七：OPEC+ 减产决议', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: 'k8', title: '关键新闻八：全球经济衰退', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: 'k9', title: '关键新闻九：货币政策调整', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
   { id: 'k10', title: '关键新闻十：航运与物流中断', source: '汇通社', dateRange: '2024/03/12 ~ 2024/05/23', impact: '+0.02%' },
@@ -50,22 +56,49 @@ const SIMILAR_EVENTS_TOP_10: NewsItem[] = [
   { id: 's10', title: '相似事件十：季节性需求波动', dateRange: '2024/03/12 ~ 2024/05/23', impact: '34%', isSimilar: true },
 ];
 
-function NewsCard({ item }: { item: NewsItem }) {
+const CONTENT_CACHE = new Map<string, NewsContent>();
+
+const generateContent = (item: NewsItem): NewsContent => {
+  if (CONTENT_CACHE.has(item.id)) {
+    return CONTENT_CACHE.get(item.id)!;
+  }
+  
+  const content: NewsContent = {
+    detail: `据${item.source || '权威媒体'}最新报道，该事件引发了全球能源市场的广泛关注。多位分析师指出，此次变动不仅直接影响了区域内的原油供应链，更可能在未来几个季度内对全球大宗商品定价体系产生深远影响。相关利益方正在紧急磋商以应对可能出现的流动性紧缩。
+
+市场反应方面，早盘交易时段已出现明显异动。多家机构上调了避险资产的配置比例，并建议投资者密切关注后续政策走向及实际供需数据的验证。`,
+    analysis: [
+      { label: '影响评估', content: `短期内将对布伦特原油产生 ${item.impact} 的价格波动预期，主要传导路径为供给侧收缩担忧。` },
+      { label: '趋势预测', content: '若局势在一周内未能缓解，溢价效应可能扩散至远期合约，带动整体价格曲线上移。' },
+      { label: '关联建议', content: '建议密切关注下周三的 EIA 库存数据发布，可能会产生对冲或叠加效应。' }
+    ]
+  };
+  
+  CONTENT_CACHE.set(item.id, content);
+  return content;
+};
+
+interface NewsCardProps {
+  item: NewsItem;
+}
+
+const NewsCard = ({ item }: NewsCardProps) => {
   const [expanded, setExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
 
-  const handleToggle = () => {
+  const content = useMemo(() => generateContent(item), [item]);
+
+  const handleToggle = useCallback(() => {
     if (!expanded && !contentLoaded) {
       setIsLoading(true);
-      // Simulate loading detail content
       setTimeout(() => {
         setIsLoading(false);
         setContentLoaded(true);
       }, 600);
     }
-    setExpanded(!expanded);
-  };
+    setExpanded(prev => !prev);
+  }, [expanded, contentLoaded]);
 
   return (
     <div
@@ -73,11 +106,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         item.bgColor ? item.bgColor : 'bg-[#111827]/60'
       } border-[#1e293b] hover:border-slate-600`}
     >
-      {/* Header / Summary row */}
-      <div 
-        className="cursor-pointer group select-none" 
-        onClick={handleToggle}
-      >
+      <div className="cursor-pointer group select-none" onClick={handleToggle}>
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <h4 className={`text-sm font-semibold text-slate-200 flex-1 transition-colors ${expanded ? 'text-[#00ffff]' : 'group-hover:text-white'}`}>
             {item.title}
@@ -96,7 +125,6 @@ function NewsCard({ item }: { item: NewsItem }) {
         </div>
       </div>
 
-      {/* Expanded Content Area */}
       <div 
         className={`grid transition-all duration-400 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-3 pt-3 border-t border-[#1e293b]' : 'grid-rows-[0fr] opacity-0'}`}
       >
@@ -108,39 +136,28 @@ function NewsCard({ item }: { item: NewsItem }) {
             </div>
           ) : contentLoaded ? (
             <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto no-scrollbar pr-1 pb-2">
-              {/* News Detail Section */}
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-[#00ffff] mb-1">
                   <FileText className="w-3.5 h-3.5" />
                   <span className="text-xs font-bold tracking-wider">事件详报</span>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed text-justify">
-                  据{item.source}最新报道，该事件引发了全球能源市场的广泛关注。多位分析师指出，此次变动不仅直接影响了区域内的原油供应链，更可能在未来几个季度内对全球大宗商品定价体系产生深远影响。相关利益方正在紧急磋商以应对可能出现的流动性紧缩。
-                  {/* Extra text to demonstrate inner scrolling */}
-                  <br/><br/>
-                  市场反应方面，早盘交易时段已出现明显异动。多家机构上调了避险资产的配置比例，并建议投资者密切关注后续政策走向及实际供需数据的验证。
+                <p className="text-xs text-slate-400 leading-relaxed text-justify whitespace-pre-line">
+                  {content.detail}
                 </p>
               </div>
 
-              {/* AI Analysis Section */}
               <div className="space-y-2 bg-blue-900/10 rounded-md p-2.5 border border-blue-500/20">
                 <div className="flex items-center gap-1.5 text-blue-400 mb-1">
                   <BrainCircuit className="w-3.5 h-3.5" />
-                  <span className="text-xs font-bold tracking-wider">AI深度分析</span>
+                  <span className="text-xs font-bold tracking-wider">AI 深度分析</span>
                 </div>
                 <ul className="space-y-1.5 text-xs text-slate-300">
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-blue-500 font-bold mt-0.5">•</span>
-                    <span><strong className="text-slate-200">影响评估：</strong>短期内将对布伦特原油产生 {item.impact} 的价格波动预期，主要传导路径为供给侧收缩担忧。</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-blue-500 font-bold mt-0.5">•</span>
-                    <span><strong className="text-slate-200">趋势预测：</strong>若局势在一周内未能缓解，溢价效应可能扩散至远期合约，带动整体价格曲线上移。</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-blue-500 font-bold mt-0.5">•</span>
-                    <span><strong className="text-slate-200">关联建议：</strong>建议密切关注下周三的 EIA 库存数据发布，可能会产生对冲或叠加效应。</span>
-                  </li>
+                  {content.analysis.map((item, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5">
+                      <span className="text-blue-500 font-bold mt-0.5">•</span>
+                      <span><strong className="text-slate-200">{item.label}：</strong>{item.content}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -149,44 +166,37 @@ function NewsCard({ item }: { item: NewsItem }) {
       </div>
     </div>
   );
-}
+};
+
+const MemoizedNewsCard = React.memo(NewsCard, (prev, next) => {
+  return prev.item.id === next.item.id;
+});
 
 export type NewsPanelMode = 'hot' | 'key' | 'similar';
 
 export default function NewsPanel({ mode = 'hot' }: { mode?: NewsPanelMode }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const getDisplayData = () => {
+  const displayData = useMemo(() => {
     switch (mode) {
       case 'hot': return { title: '今日热点新闻 TOP 10', list: TODAY_HOT_TOP_10 };
       case 'key': return { title: '关键新闻事件 TOP 10', list: KEY_NEWS_TOP_10 };
       case 'similar': return { title: '历史相似事件 TOP 10', list: SIMILAR_EVENTS_TOP_10 };
       default: return { title: '今日热点新闻 TOP 10', list: TODAY_HOT_TOP_10 };
     }
-  };
-
-  const { title, list } = getDisplayData();
+  }, [mode]);
 
   return (
     <div className="h-full flex flex-col relative z-0">
       <div className="flex items-center justify-between mb-4 mt-2 px-2 shrink-0">
-        <h3 className="text-base font-bold text-slate-200 italic tracking-wider">{title}</h3>
+        <h3 className="text-base font-bold text-slate-200 italic tracking-wider">{displayData.title}</h3>
       </div>
       
       <div className="flex-1 overflow-y-auto no-scrollbar px-2 pb-2 flex flex-col gap-3 relative" ref={containerRef}>
-        {/* Top 10 Events Section */}
-        {list.map((item) => (
-          <NewsCard key={item.id} item={item} />
+        {displayData.list.map((item) => (
+          <MemoizedNewsCard key={item.id} item={item} />
         ))}
       </div>
-
-      {/* 预测值区域 */}
-      {/* <div className="shrink-0 p-4 border-t border-[#1a2540] bg-[#0c1220]/80 backdrop-blur-md flex items-center justify-between">
-        <span className="text-sm text-slate-400">AI 最新预测价格</span>
-        <div className="text-2xl font-bold text-[#00ffff]">
-          72.26 <span className="text-sm font-normal">¥</span>
-        </div>
-      </div> */}
     </div>
   );
 }

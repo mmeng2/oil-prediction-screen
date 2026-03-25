@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useMemo, useRef, useCallback } from 'react';
+import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { INDICATORS, type IndicatorInfo, type BrentDataPoint, TODAY, type IndicatorDataPoint } from './types';
 
@@ -11,13 +12,18 @@ interface IndicatorChartProps {
   hoveredDate?: string | null;
 }
 
-function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode, selectedDate, hoveredDate }: { indicator: IndicatorInfo; timeRange: [number, number]; onTimeRangeChange: (range: [number, number]) => void; hasInjected: boolean; viewMode: 'daily' | 'weekly'; selectedDate: string; hoveredDate?: string | null }) {
-  // Use full data and let ECharts handle the zoom via option
-  const rawData = indicator.data;
-  const chartRef = useRef<ReactECharts>(null);
+interface MiniChartProps {
+  indicator: IndicatorInfo;
+  timeRange: [number, number];
+  onTimeRangeChange: (range: [number, number]) => void;
+  hasInjected: boolean;
+  viewMode: 'daily' | 'weekly';
+  selectedDate: string;
+  hoveredDate?: string | null;
+}
 
-  // Group daily data into weekly averages if needed
-  const chartData = useMemo(() => {
+const useChartData = (rawData: IndicatorDataPoint[], viewMode: 'daily' | 'weekly') => {
+  return useMemo(() => {
     if (viewMode === 'daily') return rawData;
     
     const weeks: IndicatorDataPoint[] = [];
@@ -41,9 +47,18 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
     });
     return weeks;
   }, [rawData, viewMode]);
+};
 
-  const option = useMemo(() => {
-    // Format dates to match main chart (YYYY/MM/DD or MM/DD-MM/DD)
+const useMiniChartOption = (
+  chartData: IndicatorDataPoint[],
+  indicator: IndicatorInfo,
+  timeRange: [number, number],
+  hasInjected: boolean,
+  selectedDate: string,
+  hoveredDate: string | null | undefined,
+  viewMode: 'daily' | 'weekly'
+) => {
+  return useMemo(() => {
     const dates = chartData.map(d => {
       const dt = new Date(d.date);
       if (viewMode === 'weekly') {
@@ -56,8 +71,6 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
       return `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`;
     });
     
-    // realValues should only exist before or on TODAY
-    // In weekly mode, today is the week containing TODAY
     const todayIdx = viewMode === 'weekly' 
       ? chartData.findIndex(d => {
           const dDate = new Date(d.date);
@@ -71,47 +84,36 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
       : chartData.findIndex(d => d.date === TODAY);
 
     const realValues = chartData.map((d, i) => {
-      if (todayIdx !== -1 && i > todayIdx) return null; // No real values after today
+      if (todayIdx !== -1 && i > todayIdx) return null;
       return !d.isPredict ? d.value : null;
     });
     
-    // Continuous predict line for both history and future
-    const predictValues = chartData.map((d, i) => {
-      return d.predictValue ?? d.value;
-    });
+    const predictValues = chartData.map((d, i) => d.predictValue ?? d.value);
     
-    // Connect the lines at TODAY
     if (todayIdx !== -1 && todayIdx > 0 && realValues[todayIdx] !== null) {
       predictValues[todayIdx] = realValues[todayIdx];
     }
 
-    // Find index for selectedDate for highlighting
-    const selectedIdx = viewMode === 'weekly'
-      ? chartData.findIndex(d => {
+    const findIndex = (dateStr: string) => {
+      if (viewMode === 'weekly') {
+        return chartData.findIndex(d => {
           const dDate = new Date(d.date);
-          const sDate = new Date(selectedDate);
+          const target = new Date(dateStr);
           const mon = new Date(dDate);
           mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
           const sun = new Date(mon);
           sun.setDate(mon.getDate() + 6);
-          return sDate >= mon && sDate <= sun;
-        })
-      : chartData.findIndex(d => d.date === selectedDate);
+          return target >= mon && target <= sun;
+        });
+      }
+      return chartData.findIndex(d => d.date === dateStr);
+    };
 
-    // Find index for hoveredDate for highlighting
-    const hoveredIdx = hoveredDate
-      ? (viewMode === 'weekly'
-        ? chartData.findIndex(d => {
-            const dDate = new Date(d.date);
-            const hDate = new Date(hoveredDate);
-            const mon = new Date(dDate);
-            mon.setDate(dDate.getDate() - (dDate.getDay() === 0 ? 6 : dDate.getDay() - 1));
-            const sun = new Date(mon);
-            sun.setDate(mon.getDate() + 6);
-            return hDate >= mon && hDate <= sun;
-          })
-        : chartData.findIndex(d => d.date === hoveredDate))
-      : -1;
+    const selectedIdx = findIndex(selectedDate);
+    const hoveredIdx = hoveredDate ? findIndex(hoveredDate) : -1;
+    const displayIdx = hoveredIdx !== -1 ? hoveredIdx : selectedIdx;
+    const displayValue = displayIdx !== -1 && realValues[displayIdx] !== null ? realValues[displayIdx] : null;
+    const showMarkPoint = displayValue !== null && displayIdx !== -1;
 
     const series: any[] = [
       {
@@ -132,18 +134,42 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
           },
           opacity: 0.2
         },
+        markPoint: showMarkPoint ? {
+          data: [{
+            coord: [displayIdx, displayValue],
+            symbol: 'circle',
+            symbolSize: 8,
+            itemStyle: {
+              color: indicator.color,
+              borderColor: '#fff',
+              borderWidth: 2,
+              shadowColor: indicator.color,
+              shadowBlur: 8
+            },
+            value: Number(displayValue).toFixed(2),
+            label: {
+              show: true,
+              position: 'inside',
+              color: '#fff',
+              fontSize: 9,
+              formatter: (params: any) => params.value,
+              backgroundColor: indicator.color,
+              padding: [2, 4],
+              borderRadius: 3
+            }
+          }],
+          silent: true
+        } : [],
         markLine: {
           symbol: 'none',
           label: { show: false },
           lineStyle: { color: '#64748b', type: 'dashed' },
           data: [
             { xAxis: todayIdx },
-            // Add highlighted vertical line for selectedDate
             ...(selectedIdx !== -1 ? [{
               xAxis: selectedIdx,
               lineStyle: { color: '#00ffff', type: 'dashed', width: 1.5, shadowBlur: 8, shadowColor: '#00ffff' }
             }] : []),
-            // Add highlighted vertical line for hoveredDate
             ...(hoveredIdx !== -1 && hoveredIdx !== selectedIdx ? [{
               xAxis: hoveredIdx,
               lineStyle: { color: 'rgba(255, 255, 255, 0.5)', type: 'dashed', width: 1 }
@@ -158,31 +184,23 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
         smooth: true,
         symbol: 'none',
         itemStyle: { color: '#00ffff' },
-        lineStyle: {
-          color: '#00ffff',
-          width: 2,
-          type: 'dashed'
-        }
+        lineStyle: { color: '#00ffff', width: 2, type: 'dashed' }
       }
     ];
 
     if (hasInjected) {
       series.push({
-        name: 'AI注入值',
+        name: 'AI 注入值',
         type: 'line',
         data: predictValues.map((v, i) => {
           if (v === null || i < todayIdx) return null;
-          if (i === todayIdx) return v; // connect to the main predict line at today
-          return v + (Math.sin(i) * (v * 0.05)); // Add some variance for the green line
+          if (i === todayIdx) return v;
+          return v + (Math.sin(i) * (v * 0.05));
         }),
         smooth: true,
         symbol: 'none',
         itemStyle: { color: '#22c55e' },
-        lineStyle: {
-          color: '#22c55e',
-          width: 2,
-          type: 'dashed'
-        },
+        lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
         animationDuration: 3000,
         animationEasing: 'cubicOut'
       });
@@ -190,21 +208,19 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
 
     return {
       backgroundColor: 'transparent',
-      legend: {
-        show: false,
-        top: 0,
-        right: 10,
-        icon: 'circle',
-        itemWidth: 6,
-        itemHeight: 6,
-        textStyle: { color: '#94a3b8', fontSize: 9 }
-      },
+      legend: { show: false },
       tooltip: {
         trigger: 'axis',
         backgroundColor: '#0f1525',
         borderColor: '#1a2540',
         textStyle: { color: '#e2e8f0', fontSize: 10 },
-        formatter: function (params: any) {
+        axisPointer: {
+          type: 'line',
+          snap: true,
+          lineStyle: { color: '#00ffff', width: 1, type: 'dashed' },
+          label: { show: false }
+        },
+        formatter: (params: any) => {
           let res = params[0].name + '<br/>';
           params.forEach((item: any) => {
             if (item.value !== null && item.value !== undefined) {
@@ -222,17 +238,21 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { color: '#64748b', fontSize: 9, margin: 8 },
-        splitLine: { show: false }
+        splitLine: { show: false },
+        axisPointer: {
+          show: true,
+          snap: true,
+          type: 'line',
+          lineStyle: { color: '#00ffff', width: 1, type: 'dashed' },
+          label: { show: false }
+        }
       },
       yAxis: {
         type: 'value',
         min: 'dataMin',
         max: 'dataMax',
         show: false,
-        splitLine: {
-          show: true,
-          lineStyle: { color: '#1e293b', type: 'dashed' }
-        }
+        splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } }
       },
       dataZoom: [
         {
@@ -245,60 +265,79 @@ function MiniChart({ indicator, timeRange, onTimeRangeChange, hasInjected, viewM
           moveOnMouseWheel: true
         }
       ],
-    series: series
-  };
-}, [chartData, indicator.color, timeRange, hasInjected, selectedDate, hoveredDate, viewMode]);
+      series
+    };
+  }, [chartData, indicator.color, timeRange, hasInjected, selectedDate, hoveredDate, viewMode]);
+};
 
-  // Listen to dataZoom events and sync to parent
-  const onEvents = useMemo(() => {
-    return {
-      dataZoom: (params: any) => {
-        if (chartRef.current) {
-          const echartInstance = chartRef.current.getEchartsInstance();
-          const option = echartInstance.getOption() as any;
-          if (option && option.dataZoom && option.dataZoom.length > 0) {
-            const startVal = option.dataZoom[0].start;
-            const endVal = option.dataZoom[0].end;
-            
-            if (startVal !== undefined && endVal !== undefined) {
-              if (Math.abs(startVal - timeRange[0]) > 0.01 || Math.abs(endVal - timeRange[1]) > 0.01) {
-                onTimeRangeChange([startVal, endVal]);
-              }
+const MiniChart = React.memo(({ indicator, timeRange, onTimeRangeChange, hasInjected, viewMode, selectedDate, hoveredDate }: MiniChartProps) => {
+  const chartRef = useRef<ReactECharts>(null);
+  const chartData = useChartData(indicator.data, viewMode);
+  const option = useMiniChartOption(chartData, indicator, timeRange, hasInjected, selectedDate, hoveredDate, viewMode);
+
+  const onEvents = useMemo(() => ({
+    dataZoom: (params: any) => {
+      if (chartRef.current) {
+        const echartInstance = chartRef.current.getEchartsInstance();
+        const opt = echartInstance.getOption() as any;
+        if (opt?.dataZoom?.length > 0) {
+          const startVal = opt.dataZoom[0].start;
+          const endVal = opt.dataZoom[0].end;
+          if (startVal !== undefined && endVal !== undefined) {
+            if (Math.abs(startVal - timeRange[0]) > 0.01 || Math.abs(endVal - timeRange[1]) > 0.01) {
+              onTimeRangeChange([startVal, endVal]);
             }
           }
         }
       }
-    };
-  }, [timeRange, onTimeRangeChange]);
+    }
+  }), [timeRange, onTimeRangeChange]);
 
-  return <ReactECharts ref={chartRef} option={option} onEvents={onEvents} style={{ height: '100%', width: '100%' }} notMerge={false} lazyUpdate={true} />;
-}
+  return (
+    <ReactECharts
+      ref={chartRef}
+      option={option}
+      onEvents={onEvents}
+      style={{ height: '100%', width: '100%' }}
+      notMerge={false}
+      lazyUpdate={true}
+    />
+  );
+}, (prev, next) => {
+  return (
+    prev.indicator.key === next.indicator.key &&
+    prev.timeRange[0] === next.timeRange[0] &&
+    prev.timeRange[1] === next.timeRange[1] &&
+    prev.hasInjected === next.hasInjected &&
+    prev.viewMode === next.viewMode &&
+    prev.selectedDate === next.selectedDate &&
+    prev.hoveredDate === next.hoveredDate
+  );
+});
+
+const DESC_MAP: Record<string, string> = {
+  usd_index: '美元强弱直接影响以美元计价的原油价格',
+  sp500: '全球经济活动与能源消费需求综合指标',
+  usd_cny: '全球经济活动与能源消费需求综合指标',
+  wti: '美元强弱直接影响以美元计价的原油价格',
+  effr: '产量决策对供给端的核心影响',
+  nasdaq: '全球经济活动与能源消费需求综合指标',
+  cboe_etf: '全球经济活动与能源消费需求综合指标'
+};
+
+MiniChart.displayName = 'MiniChart';
 
 export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedPredictions, viewMode, selectedDate, hoveredDate }: IndicatorChartProps) {
-  const getDesc = (key: string) => {
-    const descs: Record<string, string> = {
-      usd_index: '美元强弱直接影响以美元计价的原油价格',
-      sp500: '全球经济活动与能源消费需求综合指标',
-      usd_cny: '全球经济活动与能源消费需求综合指标',
-      wti: '美元强弱直接影响以美元计价的原油价格',
-      effr: '产量决策对供给端的核心影响',
-      nasdaq: '全球经济活动与能源消费需求综合指标',
-      cboe_etf: '全球经济活动与能源消费需求综合指标'
-    };
-    return descs[key] || '';
-  };
-
-  // Duplicate for infinite scroll
-  const displayIndicators = [...INDICATORS, ...INDICATORS];
   const hasInjected = injectedPredictions && injectedPredictions.length > 0;
+  const displayIndicators = useMemo(() => [...INDICATORS, ...INDICATORS], []);
+
+  const getCardWidth = useCallback(() => {
+    if (typeof window === 'undefined') return '400px';
+    return `calc((100vw - 360px - 2rem - 2rem) / 3 - 11px)`;
+  }, []);
 
   return (
     <div className="w-full h-full relative overflow-hidden" id="indicator-carousel">
-      {/* 
-        Using a continuous marquee animation.
-        The width is set so that each item takes up exactly 1/3 of the container width (minus gap),
-        and the animation translates by exactly 50% of the flex container (which contains 2x items).
-      */}
       <div 
         className="flex h-full absolute left-0 top-0 gap-4 animate-marquee hover:[animation-play-state:paused]"
         style={{ width: 'max-content' }}
@@ -310,9 +349,8 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
             <div 
               key={`${indicator.key}-${idx}`} 
               className="h-full bg-[#111827]/80 rounded-lg border border-[#1f2937] p-3 flex flex-col relative overflow-hidden shrink-0"
-              style={{ width: 'calc((100vw - 360px - 2rem - 2rem) / 3 - 11px)' }} // Roughly 1/3 of the available width for left section
+              style={{ width: getCardWidth() }}
             >
-              {/* Top Row: Name and Value */}
               <div className="flex justify-between items-start z-10">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full shadow-lg" style={{ backgroundColor: indicator.color, boxShadow: `0 0 8px ${indicator.color}` }}></div>
@@ -324,14 +362,20 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
                 </div>
               </div>
 
-              {/* Chart Area */}
               <div className="flex-1 w-full min-h-0 relative z-0 -mt-2">
-                <MiniChart indicator={indicator} timeRange={timeRange} onTimeRangeChange={onTimeRangeChange} hasInjected={hasInjected} viewMode={viewMode} selectedDate={selectedDate} hoveredDate={hoveredDate} />
+                <MiniChart
+                  indicator={indicator}
+                  timeRange={timeRange}
+                  onTimeRangeChange={onTimeRangeChange}
+                  hasInjected={hasInjected}
+                  viewMode={viewMode}
+                  selectedDate={selectedDate}
+                  hoveredDate={hoveredDate}
+                />
               </div>
 
-              {/* Bottom Row: Description */}
               <div className="text-[10px] text-slate-500 mt-1 z-10 line-clamp-1">
-                {getDesc(indicator.key)}
+                {DESC_MAP[indicator.key] || ''}
               </div>
             </div>
           );
