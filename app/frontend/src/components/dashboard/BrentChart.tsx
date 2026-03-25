@@ -9,10 +9,8 @@ const COLOR_PREDICT = '#00ffff';
 const COLOR_INJECT = '#22c55e';
 
 const CURRENCIES = [
-  { code: 'CNY', symbol: '¥', rate: 1 },
-  { code: 'USD', symbol: '$', rate: 0.14 },
-  { code: 'GBP', symbol: '£', rate: 0.11 },
-  { code: 'HKD', symbol: 'HK$', rate: 1.09 },
+  { code: 'CNY/bbl', symbol: '¥', rate: 1 },
+  { code: 'USD/bbl', symbol: '$', rate: 0.14 },
 ];
 
 interface BrentChartProps {
@@ -165,9 +163,9 @@ const useChartOption = (
       legend: { show: false },
       tooltip: {
         trigger: 'axis',
-        backgroundColor: '#0f1525',
-        borderColor: '#1a2540',
-        textStyle: { color: '#e2e8f0' },
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+        padding: 0,
         axisPointer: {
           type: 'line',
           snap: true,
@@ -175,20 +173,37 @@ const useChartOption = (
           label: { show: false }
         },
         formatter: (params: any) => {
-          let res = params[0].name + '<br/>';
-          params.forEach((item: any) => {
-            if (item.value !== null && item.value !== undefined) {
-              res += item.marker + ' ' + item.seriesName + ': ' + currency.symbol + (item.value * scale).toFixed(2) + '<br/>';
-            }
-          });
-          return res;
+          const content = params.map((item: any) => {
+            if (item.value === null || item.value === undefined) return '';
+            const val = (item.value * scale).toFixed(2);
+            return `
+              <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${item.color};"></span>
+                  <span style="color: #f1f5f9; font-size: 12px; font-weight: 600;">${item.seriesName}</span>
+                </div>
+                <div style="display: flex; align-items: baseline; gap: 4px;">
+                  <span style="color: ${item.color}; font-size: 14px; font-weight: bold;">${val}</span>
+                  <span style="color: #94a3b8; font-size: 10px;">${currency.code}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          return `
+            <div style="width: 188px; height: 83.26px; padding: 5.63px; background: rgba(158, 197, 225, 0.1); border-radius: 5.63px; border: 0.47px solid; border-image: linear-gradient(119deg, rgba(255, 255, 255, 0.3) 2%, rgba(255, 255, 255, 0.05) 100%) 0.47; backdrop-filter: blur(14.55px); box-sizing: border-box;">
+              <div style="width: 100%; height: 100%; background: linear-gradient(90deg, rgba(158, 197, 225, 0.15) 0%, rgba(158, 197, 225, 0.08) 100%); border-radius: 4px; padding: 8px; display: flex; flex-direction: column; justify-content: center; gap: 6px; box-sizing: border-box;">
+                ${content}
+              </div>
+            </div>
+          `;
         }
       },
-      grid: { top: 40, left: 60, right: 20, bottom: 30, containLabel: false },
+      grid: { top: 40, left: 60, right: 20, bottom: 40, containLabel: false },
       xAxis: {
         type: 'category',
         data: dates,
-        axisLine: { lineStyle: { color: '#475569' } },
+        axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { color: '#64748b', fontSize: 12, margin: 15 },
         splitLine: { show: false },
@@ -215,16 +230,23 @@ const useChartOption = (
           type: 'slider',
           show: true,
           xAxisIndex: [0],
-          bottom: 0,
-          height: 8,
+          bottom: 37,
+          height: 6,
           borderColor: 'transparent',
-          backgroundColor: '#0f1525',
+          backgroundColor: 'rgba(71, 85, 105, 0.1)',
           fillerColor: '#475569',
-          handleSize: 0,
+          handleIcon: 'path://M-0.5,-1 L0.5,-1 L0.5,1 L-0.5,1 Z',
+          handleSize: '200%',
+          handleStyle: {
+            color: '#475569',
+            borderWidth: 0
+          },
+          moveHandleSize: 0,
           showDetail: false,
           showDataShadow: false,
           start: timeRange[0],
           end: timeRange[1],
+          z: 10
         },
         {
           type: 'inside',
@@ -242,7 +264,7 @@ const useChartOption = (
           type: 'line',
           triggerLineEvent: true,
           data: realValues,
-          smooth: true,
+          // smooth: true,
           symbol: 'circle',
           symbolSize: (val: any, params: any) => params.dataIndex === selectedIdx ? 12 : 0,
           itemStyle: {
@@ -302,7 +324,7 @@ const useChartOption = (
           type: 'line',
           triggerLineEvent: true,
           data: predictValues,
-          smooth: true,
+          // smooth: true,
           symbol: 'circle',
           symbolSize: (val: any, params: any) => params.dataIndex === selectedIdx ? 12 : 0,
           itemStyle: {
@@ -327,9 +349,9 @@ const useChartOption = (
           type: 'line',
           triggerLineEvent: true,
           data: injectedValues,
-          smooth: true,
+          // smooth: true,
           symbol: 'circle',
-          symbolSize: (val: any, params: any) => params.dataIndex === selectedIdx ? 12 : 6,
+          symbolSize: (val: any, params: any) => params.dataIndex === selectedIdx ? 12 : 0,
           itemStyle: {
             color: COLOR_INJECT,
             borderColor: (params: any) => params.dataIndex === selectedIdx ? '#fff' : '#0f1525',
@@ -565,21 +587,21 @@ export default function BrentChart(props: BrentChartProps) {
   return (
     <div className="h-full flex flex-col relative">
       <div className="flex items-start justify-between mb-4 z-10 relative">
-        <div className="flex items-baseline gap-4">
-          <div className="flex items-baseline gap-1 relative">
-            <span className="text-5xl font-bold text-[#00ffff]" style={{ textShadow: '0 0 20px rgba(0,255,255,0.4)' }}>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 relative">
+            <span className="text-5xl font-bold text-[#00ffff] tracking-tight" style={{ textShadow: '0 0 20px rgba(0,255,255,0.4)' }}>
               {(currentValue * currency.rate).toFixed(2)}
             </span>
             <div 
-              className="flex items-center gap-1 cursor-pointer group"
+              className="flex items-center gap-1 cursor-pointer group mt-2"
               onClick={() => setShowCurrencySelector(!showCurrencySelector)}
             >
-              <span className="text-xl text-[#00ffff]">{currency.symbol}</span>
-              <ChevronDown className="w-4 h-4 text-[#00ffff] opacity-50 group-hover:opacity-100 transition-opacity" />
+              <span className="text-lg text-white font-medium">{currency.code}</span>
+              <ChevronDown className="w-4 h-4 text-white opacity-50 group-hover:opacity-100 transition-opacity" />
             </div>
             
             {showCurrencySelector && (
-              <div className="absolute top-full left-full mt-2 w-24 bg-[#0f1525]/95 border border-[#1a2540] rounded-lg shadow-xl overflow-hidden backdrop-blur-md z-50">
+              <div className="absolute top-full left-[110px] mt-1 w-28 bg-[#0f1525]/95 border border-[#1a2540] rounded-lg shadow-xl overflow-hidden backdrop-blur-md z-50">
                 {CURRENCIES.map(c => (
                   <div
                     key={c.code}
@@ -593,23 +615,27 @@ export default function BrentChart(props: BrentChartProps) {
                       setShowCurrencySelector(false);
                     }}
                   >
-                    {c.symbol} {c.code}
+                    {c.code}
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4 text-sm mt-2">
-            <span className="flex items-center gap-1">
+          <div className="flex items-center gap-4 text-[13px] mt-3">
+            <div className="flex items-center gap-1.5">
               <span className="text-slate-400">最高</span>
               <span className="text-red-500 font-bold">{(highValue * currency.rate).toFixed(2)}</span>
-              <span className="text-red-500 text-xs">▲</span>
-            </span>
-            <span className="flex items-center gap-1">
+              <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                <span className="text-red-500 text-[10px]">▲</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
               <span className="text-slate-400">最低</span>
               <span className="text-green-500 font-bold">{(lowValue * currency.rate).toFixed(2)}</span>
-              <span className="text-green-500 text-xs">▼</span>
-            </span>
+              <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                <span className="text-green-500 text-[10px]">▼</span>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -643,55 +669,90 @@ export default function BrentChart(props: BrentChartProps) {
 
         {hasInjected && (
           <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ top: '40px', bottom: '24px', left: '60px', right: '20px' }}>
-            {SIMILAR_EVENTS.slice(0, 5).map((evt, idx) => (
+            {SIMILAR_EVENTS.slice(0, 10).map((evt, idx) => (
               <div 
                 key={evt.id}
-                className={`absolute rounded-xl border p-2 cursor-pointer shadow-lg group ${
-                  activeEvent === evt.id 
-                    ? 'w-[240px] border-blue-400 bg-[linear-gradient(90deg,rgba(158,197,225,0.95)_0%,rgba(158,197,225,0.85)_100%)] shadow-[0_8px_32px_rgba(0,0,0,0.4)] scale-150 z-50' 
-                    : 'w-[180px] border-slate-300/50 bg-[linear-gradient(90deg,rgba(158,197,225,0.15)_0%,rgba(158,197,225,0.08)_100%)] hover:border-blue-300/50 hover:bg-[linear-gradient(90deg,rgba(158,197,225,0.25)_0%,rgba(158,197,225,0.15)_100%)] z-20 hover:z-30'
+                className={`absolute cursor-pointer shadow-lg group transition-all duration-300 ${
+                  activeEvent === evt.id ? 'z-50' : 'z-20 hover:z-30'
                 }`}
-                style={{ backdropFilter: 'blur(12px)', ...getCardStyle(idx) }}
+                style={{ 
+                  width: activeEvent === evt.id ? '311.27px' : '189.98px',
+                  height: activeEvent === evt.id ? '172.27px' : '106.98px',
+                  padding: '5.63px',
+                  background: 'rgba(158, 197, 225, 0.1)',
+                  borderRadius: '5.63px',
+                  border: '0.47px solid',
+                  borderImage: 'linear-gradient(119deg, rgba(255, 255, 255, 0.3) 2%, rgba(255, 255, 255, 0.05) 100%) 0.47',
+                  backdropFilter: 'blur(14.55px)',
+                  ...getCardStyle(idx) 
+                }}
                 onMouseEnter={() => setActiveEvent(evt.id)}
                 onMouseLeave={() => setActiveEvent(null)}
               >
-                <div className="flex justify-between items-start mb-0.5">
-                  <span className={`text-[10px] font-bold truncate pr-2 transition-colors ${activeEvent === evt.id ? 'text-slate-900' : 'text-slate-300 group-hover:text-slate-200'}`}>
-                    相似事件{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][idx]}
-                  </span>
-                  <span className={`text-[10px] font-bold shrink-0 transition-colors ${activeEvent === evt.id ? 'text-red-600' : 'text-red-400 group-hover:text-red-500'}`}>
-                    <span className={`font-normal transition-colors ${activeEvent === evt.id ? 'text-slate-600' : 'text-slate-400 group-hover:text-slate-300'}`}>相似度 </span>{evt.similarity}%
-                  </span>
-                </div>
-                <div className={`text-xs font-bold mb-0.5 truncate transition-colors ${activeEvent === evt.id ? 'text-slate-900' : 'text-slate-200 group-hover:text-white'}`}>
-                  {evt.title}
-                </div>
-                <div className={`text-[9px] mb-1 transition-colors ${activeEvent === evt.id ? 'text-slate-600' : 'text-slate-400 group-hover:text-slate-300'}`}>
-                  {evt.periodStart} ~ {evt.periodEnd}
-                </div>
-                
-                <div className="h-10 w-full mt-1 relative">
-                  <svg width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="none">
-                    <path 
-                      d={`M 0,${40 - (evt.chartData[0].actual / 10000) * 40} 
-                          L 33,${40 - (evt.chartData[1].actual / 10000) * 40} 
-                          L 66,${40 - (evt.chartData[2].actual / 10000) * 40} 
-                          L 100,${40 - (evt.chartData[3].actual / 10000) * 40}`} 
-                      fill="none" 
-                      stroke="#22c55e" 
-                      strokeWidth="2" 
-                    />
-                    <path 
-                      d={`M 0,${40 - (evt.chartData[0].predicted / 10000) * 40} 
-                          L 33,${40 - (evt.chartData[1].predicted / 10000) * 40} 
-                          L 66,${40 - (evt.chartData[2].predicted / 10000) * 40} 
-                          L 100,${40 - (evt.chartData[3].predicted / 10000) * 40}`} 
-                      fill="none" 
-                      stroke="#00ffff" 
-                      strokeWidth="1.5" 
-                      strokeDasharray="3 3"
-                    />
-                  </svg>
+                <div 
+                  className="w-full h-full flex flex-col"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(158, 197, 225, 0.15) 0%, rgba(158, 197, 225, 0.08) 100%)',
+                    borderRadius: '4px',
+                    padding: activeEvent === evt.id ? '12px' : '8px',
+                    gap: '7.51px'
+                  }}
+                >
+                  <div className="flex justify-between items-center">
+                    <div 
+                      className="truncate transition-colors text-slate-200 group-hover:text-white flex-1 mr-2"
+                      style={{
+                        fontSize: activeEvent === evt.id ? '14px' : '10px',
+                        fontWeight: 600,
+                        lineHeight: activeEvent === evt.id ? '1.4' : '10.33px'
+                      }}
+                    >
+                      相似事件{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][idx]}：{evt.title}
+                    </div>
+                    <div 
+                      className="shrink-0 text-red-500"
+                      style={{
+                        fontSize: activeEvent === evt.id ? '12px' : '10px',
+                        fontWeight: 'bold',
+                        lineHeight: 'normal'
+                      }}
+                    >
+                      {evt.similarity}%
+                    </div>
+                  </div>
+                  <div 
+                    className="transition-colors text-slate-400 group-hover:text-slate-300"
+                    style={{
+                      fontSize: activeEvent === evt.id ? '12px' : '8px',
+                      fontWeight: 'normal',
+                      lineHeight: activeEvent === evt.id ? '1.4' : '9.39px'
+                    }}
+                  >
+                    {evt.periodStart} ~ {evt.periodEnd}
+                  </div>
+                  
+                  <div className="flex-1 w-full relative mt-2 min-h-0">
+                    <svg width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="none">
+                      <path 
+                        d={`M 0,${40 - (evt.chartData[0].actual / 10000) * 40} 
+                            L 33,${40 - (evt.chartData[1].actual / 10000) * 40} 
+                            L 66,${40 - (evt.chartData[2].actual / 10000) * 40} 
+                            L 100,${40 - (evt.chartData[3].actual / 10000) * 40}`} 
+                        fill="none" 
+                        stroke="#672073" 
+                        strokeWidth="3" 
+                      />
+                      <path 
+                        d={`M 0,${40 - (evt.chartData[0].predicted / 10000) * 40} 
+                            L 33,${40 - (evt.chartData[1].predicted / 10000) * 40} 
+                            L 66,${40 - (evt.chartData[2].predicted / 10000) * 40} 
+                            L 100,${40 - (evt.chartData[3].predicted / 10000) * 40}`} 
+                        fill="none" 
+                        stroke="#00FF55" 
+                        strokeWidth="2" 
+                      />
+                    </svg>
+                  </div>
                 </div>
               </div>
             ))}

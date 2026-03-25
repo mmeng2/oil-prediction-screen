@@ -120,7 +120,7 @@ const useMiniChartOption = (
         name: '历史值',
         type: 'line',
         data: realValues,
-        smooth: true,
+        // smooth: true,
         symbol: 'none',
         lineStyle: { color: indicator.color, width: 2 },
         areaStyle: {
@@ -181,7 +181,7 @@ const useMiniChartOption = (
         name: '预测值',
         type: 'line',
         data: predictValues,
-        smooth: true,
+        // smooth: true,
         symbol: 'none',
         itemStyle: { color: '#00ffff' },
         lineStyle: { color: '#00ffff', width: 2, type: 'dashed' }
@@ -197,7 +197,7 @@ const useMiniChartOption = (
           if (i === todayIdx) return v;
           return v + (Math.sin(i) * (v * 0.05));
         }),
-        smooth: true,
+        // smooth: true,
         symbol: 'none',
         itemStyle: { color: '#22c55e' },
         lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
@@ -316,13 +316,13 @@ const MiniChart = React.memo(({ indicator, timeRange, onTimeRangeChange, hasInje
 });
 
 const DESC_MAP: Record<string, string> = {
-  usd_index: '美元强弱直接影响以美元计价的原油价格',
-  sp500: '全球经济活动与能源消费需求综合指标',
-  usd_cny: '全球经济活动与能源消费需求综合指标',
-  wti: '美元强弱直接影响以美元计价的原油价格',
-  effr: '产量决策对供给端的核心影响',
-  nasdaq: '全球经济活动与能源消费需求综合指标',
-  cboe_etf: '全球经济活动与能源消费需求综合指标'
+  usd_index: '美元强弱直接影响原油计价走势',
+  sp500: '全球经济景气度先行指标，映射原油需求',
+  usd_cny: '直接影响中国原油进口采购成本',
+  wti: '全球原油定价核心基准之一',
+  effr: '决定美元流动性与原油定价环境',
+  nasdaq: '反映全球市场风险偏好与资金流向',
+  cboe_etf: '反映原油市场波动预期与风险情绪'
 };
 
 MiniChart.displayName = 'MiniChart';
@@ -351,7 +351,7 @@ export default function IndicatorChart({ timeRange, onTimeRangeChange, injectedP
               className="h-full bg-[#111827]/80 rounded-lg border border-[#1f2937] p-3 flex flex-col relative overflow-hidden shrink-0"
               style={{ width: getCardWidth() }}
             >
-              <div className="flex justify-between items-start z-10">
+              <div className="flex justify-between items-center z-10">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full shadow-lg" style={{ backgroundColor: indicator.color, boxShadow: `0 0 8px ${indicator.color}` }}></div>
                   <span className="text-sm font-medium text-slate-300">{indicator.name}</span>

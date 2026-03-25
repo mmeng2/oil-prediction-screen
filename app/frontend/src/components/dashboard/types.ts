@@ -202,13 +202,13 @@ let _brentDataCache: BrentDataPoint[] | null = null;
 export const getIndicators = (): IndicatorInfo[] => {
   if (!_indicatorsCache) {
     _indicatorsCache = [
-      { key: 'usd_index', name: '美元指数 (DXY)', unit: 'Index', color: '#eab308', data: generateIndicatorData(101.3, 1.5, 90, 110, 102) },
-      { key: 'sp500', name: '标普 500', unit: 'Index', color: '#3b82f6', data: generateIndicatorData(5621.89, 50, 5000, 6000, 101) },
-      { key: 'usd_cny', name: '美元 - 人民币汇率', unit: 'USD/CNY', color: '#a855f7', data: generateIndicatorData(53.2, 0.5, 50.0, 55.0, 103) },
-      { key: 'wti', name: 'WTI 油价', unit: 'CNY/bbl', color: '#ef4444', data: generateIndicatorData(101.3, 3.2, 80, 120, 104) },
-      { key: 'effr', name: '美国：有效联邦基金利率', unit: '%', color: '#f97316', data: generateIndicatorData(2722.6, 50, 2500, 3000, 105) },
-      { key: 'nasdaq', name: '纳斯达克综合指数', unit: 'Index', color: '#06b6d4', data: generateIndicatorData(18256.34, 300, 14000, 19000, 106) },
-      { key: 'cboe_etf', name: 'CBOE 原油 ETF 波动率指数', unit: 'Index', color: '#8b5cf6', data: generateIndicatorData(56.34, 2, 40, 80, 107) },
+      { key: 'usd_index', name: '美元指数 (DXY)', unit: 'Index', color: '#FFD800', data: generateIndicatorData(101.3, 1.5, 90, 110, 102) },
+      { key: 'sp500', name: '标普 500', unit: 'Index', color: '#0A6AB5', data: generateIndicatorData(5621.89, 50, 5000, 6000, 101) },
+      { key: 'usd_cny', name: '美元 - 人民币汇率', unit: 'USD/CNY', color: '#AD2AF9', data: generateIndicatorData(53.2, 0.5, 50.0, 55.0, 103) },
+      { key: 'wti', name: 'WTI 油价', unit: 'CNY/bbl', color: '#F47A7B', data: generateIndicatorData(101.3, 3.2, 80, 120, 104) },
+      { key: 'effr', name: '美国：有效联邦基金利率', unit: '%', color: '#FFA832', data: generateIndicatorData(2722.6, 50, 2500, 3000, 105) },
+      { key: 'nasdaq', name: '纳斯达克综合指数', unit: 'Index', color: '#DD92C0', data: generateIndicatorData(18256.34, 300, 14000, 19000, 106) },
+      { key: 'cboe_etf', name: 'CBOE 原油 ETF 波动率指数', unit: 'Index', color: '#AE7E65', data: generateIndicatorData(56.34, 2, 40, 80, 107) },
     ];
   }
   return _indicatorsCache;
