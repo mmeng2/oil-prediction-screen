@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import headerTitle from "../../assets/header-title.png";
 
 const ACCENT = '#00FFFF';
 
@@ -35,7 +36,7 @@ export default function TopNav({ currentDate }: TopNavProps) {
 
       {/* Left: Logo + Title */}
       <div className="flex items-end relative z-10 h-16">
-        <img src="/assets/header-title.png" alt="AI油价预测系统" className="h-[55px] object-contain"/>
+        <img src={headerTitle} alt="AI油价预测系统" className="h-[55px] object-contain"/>
       </div>
 
       {/* Right: Real current time */}

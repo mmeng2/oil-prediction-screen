@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import React from 'react';
-import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, FileText, BrainCircuit, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, FileText, Loader2 } from 'lucide-react';
 
 interface NewsItem {
   id: string;
@@ -132,7 +132,7 @@ const NewsCard = ({ item }: NewsCardProps) => {
           {isLoading ? (
             <div className="flex items-center justify-center py-6 text-slate-500 gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">加载深度分析中...</span>
+              <span className="text-xs">加载详情中...</span>
             </div>
           ) : contentLoaded ? (
             <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto no-scrollbar pr-1 pb-2">
@@ -144,21 +144,6 @@ const NewsCard = ({ item }: NewsCardProps) => {
                 <p className="text-xs text-slate-400 leading-relaxed text-justify whitespace-pre-line">
                   {content.detail}
                 </p>
-              </div>
-
-              <div className="space-y-2 bg-blue-900/10 rounded-md p-2.5 border border-blue-500/20">
-                <div className="flex items-center gap-1.5 text-blue-400 mb-1">
-                  <BrainCircuit className="w-3.5 h-3.5" />
-                  <span className="text-xs font-bold tracking-wider">AI 深度分析</span>
-                </div>
-                <ul className="space-y-1.5 text-xs text-slate-300">
-                  {content.analysis.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-blue-500 font-bold mt-0.5">•</span>
-                      <span><strong className="text-slate-200">{item.label}：</strong>{item.content}</span>
-                    </li>
-                  ))}
-                </ul>
               </div>
             </div>
           ) : null}

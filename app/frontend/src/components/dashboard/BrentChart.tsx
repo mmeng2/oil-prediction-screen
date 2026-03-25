@@ -306,7 +306,7 @@ const useChartOption = (
           } : undefined,
           markLine: {
             symbol: 'none',
-            label: { show: true, position: 'start', color: '#94a3b8', formatter: '今日' },
+            label: { show: true, position: 'end', color: '#94a3b8', formatter: '今日' },
             lineStyle: { color: '#64748b', type: 'dashed' },
             data: [
               { xAxis: todayIdx },
@@ -415,7 +415,6 @@ export default function BrentChart(props: BrentChartProps) {
   const [highValue, setHighValue] = useState(7.88);
   const [lowValue, setLowValue] = useState(6.93);
   const [currency, setCurrency] = useState(CURRENCIES[0]);
-  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [activeEvent, setActiveEvent] = useState<number | null>(null);
 
   const weeklyData = useWeeklyData(data, viewMode);
@@ -593,33 +592,18 @@ export default function BrentChart(props: BrentChartProps) {
               {(currentValue * currency.rate).toFixed(2)}
             </span>
             <div 
-              className="flex items-center gap-1 cursor-pointer group mt-2"
-              onClick={() => setShowCurrencySelector(!showCurrencySelector)}
+              className="flex flex-col cursor-pointer group mt-1"
+              onClick={() => {
+                const nextCurrency = currency.code === CURRENCIES[0].code ? CURRENCIES[1] : CURRENCIES[0];
+                setCurrency(nextCurrency);
+              }}
             >
-              <span className="text-lg text-white font-medium">{currency.code}</span>
-              <ChevronDown className="w-4 h-4 text-white opacity-50 group-hover:opacity-100 transition-opacity" />
-            </div>
-            
-            {showCurrencySelector && (
-              <div className="absolute top-full left-[110px] mt-1 w-28 bg-[#0f1525]/95 border border-[#1a2540] rounded-lg shadow-xl overflow-hidden backdrop-blur-md z-50">
-                {CURRENCIES.map(c => (
-                  <div
-                    key={c.code}
-                    className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                      currency.code === c.code 
-                        ? 'bg-[#00ffff]/20 text-[#00ffff]' 
-                        : 'text-slate-300 hover:bg-slate-800'
-                    }`}
-                    onClick={() => {
-                      setCurrency(c);
-                      setShowCurrencySelector(false);
-                    }}
-                  >
-                    {c.code}
-                  </div>
-                ))}
+              <span style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.4)' }}>布伦特原油</span>
+              <div className="flex items-center gap-1">
+                <span className="text-lg text-white font-medium">{currency.code}</span>
+                <ChevronDown className="w-4 h-4 text-white opacity-50 group-hover:opacity-100 transition-opacity" />
               </div>
-            )}
+            </div>
           </div>
           <div className="flex items-center gap-4 text-[13px] mt-3">
             <div className="flex items-center gap-1.5">

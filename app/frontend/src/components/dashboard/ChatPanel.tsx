@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import React from "react";
+import logo1 from "../../assets/logo1.png";
+import aiAvatar from "../../assets/image.png";
 import {
   Send,
   X,
@@ -401,7 +403,7 @@ export default function ChatPanel({
             <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-[15px] group-hover:bg-blue-500/40 transition-all duration-500"></div>
             <div className="relative w-20 h-20 rounded-full border-2 border-white/20 group-hover:border-white/40 transition-all overflow-hidden shadow-2xl bg-[#0f172a]">
               <img 
-                src="/assets/logo1.png" 
+                src={logo1} 
                 alt="AI" 
                 className="w-full h-full object-cover scale-110 group-hover:scale-125 transition-transform duration-500" 
               />
@@ -453,7 +455,7 @@ export default function ChatPanel({
 
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {showForm ? (
-            <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-none">
+            <div className="flex-1 overflow-y-auto p-5 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
               <div className="space-y-4 bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10">
                 <div>
                   <label className="block text-sm text-slate-400 mb-1.5">事件类型</label>
@@ -536,13 +538,13 @@ export default function ChatPanel({
               </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto p-5 space-y-5 scroll-smooth scrollbar-none relative" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto p-5 space-y-5 scroll-smooth relative [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20" ref={scrollRef}>
               {messages.length === 0 && !isTyping ? (
                 <div className="flex flex-col items-center justify-center h-[489px] -mt-4">
                   <div className="relative mb-8">
                     <div className="absolute inset-0 rounded-full bg-blue-400/20 blur-[40px] animate-pulse"></div>
-                    <div className="relative w-289 h-289 p-1.5 overflow-hidden ">
-                      <img src="/assets/image.png" alt="AI Avatar" className="w-full h-full object-cover rounded-full" />
+                    <div className="relative w-28 h-28 p-1.5 overflow-hidden ">
+                      <img src={aiAvatar} alt="AI Avatar" className="w-full h-full object-cover rounded-full" />
                     </div>
                   </div>
                   <div className="w-full space-y-3 px-1 max-w-[300px]">

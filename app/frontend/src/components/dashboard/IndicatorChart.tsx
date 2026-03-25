@@ -122,6 +122,7 @@ const useMiniChartOption = (
         data: realValues,
         // smooth: true,
         symbol: 'none',
+        showSymbol: false,
         lineStyle: { color: indicator.color, width: 2 },
         areaStyle: {
           color: {
@@ -134,32 +135,6 @@ const useMiniChartOption = (
           },
           opacity: 0.2
         },
-        markPoint: showMarkPoint ? {
-          data: [{
-            coord: [displayIdx, displayValue],
-            symbol: 'circle',
-            symbolSize: 8,
-            itemStyle: {
-              color: indicator.color,
-              borderColor: '#fff',
-              borderWidth: 2,
-              shadowColor: indicator.color,
-              shadowBlur: 8
-            },
-            value: Number(displayValue).toFixed(2),
-            label: {
-              show: true,
-              position: 'inside',
-              color: '#fff',
-              fontSize: 9,
-              formatter: (params: any) => params.value,
-              backgroundColor: indicator.color,
-              padding: [2, 4],
-              borderRadius: 3
-            }
-          }],
-          silent: true
-        } : [],
         markLine: {
           symbol: 'none',
           label: { show: false },
@@ -183,6 +158,7 @@ const useMiniChartOption = (
         data: predictValues,
         // smooth: true,
         symbol: 'none',
+        showSymbol: false,
         itemStyle: { color: '#00ffff' },
         lineStyle: { color: '#00ffff', width: 2, type: 'dashed' }
       }
@@ -199,6 +175,7 @@ const useMiniChartOption = (
         }),
         // smooth: true,
         symbol: 'none',
+        showSymbol: false,
         itemStyle: { color: '#22c55e' },
         lineStyle: { color: '#22c55e', width: 2, type: 'dashed' },
         animationDuration: 3000,
