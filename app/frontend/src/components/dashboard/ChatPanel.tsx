@@ -15,6 +15,9 @@ import {
   Target,
   AlertCircle,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -41,6 +44,12 @@ const SUGGESTIONS = [
   "模拟明日美伊以事件冲突结束",
 ];
 
+const PRESET_QUESTIONS = [
+  "霍尔木兹海峡封锁",
+  "沙特下调原油出口价格",
+  "OPEC+ 宣布减产"
+];
+
 export default function ChatPanel({
   onInject,
   onReset,
@@ -62,6 +71,9 @@ export default function ChatPanel({
     { type: string; scope: string; duration: string; time: string }[]
   >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [isHovered, setIsHovered] = useState(false);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
 
   const [formData, setFormData] = useState({
     type: "地缘政治",
@@ -180,6 +192,57 @@ export default function ChatPanel({
     );
   }, [formData, history, handleSend]);
 
+  const ThinkingModule = useCallback(({ progress, expanded, setExpanded }: { progress: number, expanded: boolean, setExpanded: (v: boolean) => void }) => (
+    <div className="w-full flex flex-col gap-3">
+      <div 
+        className="flex items-center gap-2 text-[13px] text-white/60 font-medium cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <BrainCircuit className="w-4 h-4" />
+        <span>{progress >= 3 ? "思考与分析完成" : "思考与分析中..."}</span>
+        <div className="ml-1">
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </div>
+      </div>
+      
+      <div className={`grid transition-all duration-300 ease-in-out ${expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className="overflow-hidden">
+          <div className="space-y-2.5">
+            {[
+              { id: 1, label: "数据感知" },
+              { id: 2, label: "深度思考" },
+              { id: 3, label: "生成分析结果" }
+            ].map((step) => (
+              <div 
+                key={step.id}
+                className={`flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all duration-500 ${
+                  progress >= step.id 
+                    ? "bg-[#061a11] border-[#1a4d32] text-green-400" 
+                    : "bg-white/5 border-white/5 text-white/40"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {progress >= step.id ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : progress === step.id - 1 ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border border-white/20" />
+                  )}
+                  <span className="text-[13px] font-medium">{progress >= step.id ? "已完成" : "进行中"} {step.label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] opacity-60">3.5s</span>
+                  <ChevronRight className="w-3 h-3 opacity-40" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  ), []);
+
   const MessageList = useMemo(() => {
     return messages.map((msg) => (
       <React.Fragment key={msg.id}>
@@ -218,47 +281,135 @@ export default function ChatPanel({
             )}
 
           {msg.role === "assistant" && msg.isInjection && msg.injectionData && (
-            <div className="w-full mt-4 space-y-3">
-              <div className="text-sm text-slate-300 mb-2 font-medium">
-                已为你注入 {msg.injectionData.count} 条模拟事件：
-              </div>
-              {msg.injectionData.events.map((evt, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3.5 flex flex-col gap-2.5 shadow-xl transition-all hover:bg-white/10 animate-slideIn"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="font-semibold text-slate-100 text-[13px] leading-snug">
-                      {evt.title}
-                    </span>
-                    <div className="flex items-center gap-1 text-red-400 bg-red-500/10 px-2 py-0.5 rounded text-[10px] font-bold shrink-0 border border-red-500/20">
-                      <Activity className="w-3 h-3" />
-                      {evt.impact}
+            <div className="w-full mt-4 space-y-4">
+              {/* Permanent Thinking Module for Injection Messages */}
+              <ThinkingModule 
+                progress={3} 
+                expanded={thinkingExpanded} 
+                setExpanded={setThinkingExpanded} 
+              />
+
+              <div className="space-y-3">
+                <div className="text-sm text-slate-300 mb-2 font-medium">
+                  已为你注入 {msg.injectionData.count} 条模拟事件：
+                </div>
+                {msg.injectionData.events.map((evt, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-[#111827]/40 backdrop-blur-md border border-white/10 rounded-xl p-3 flex flex-col gap-2 shadow-xl transition-all hover:bg-white/5"
+                  >
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="font-bold text-slate-100 text-[14px]">
+                        {evt.title}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1 text-[#ff4d4f] bg-[#ff4d4f]/10 px-2 py-0.5 rounded-full text-[11px] font-bold border border-[#ff4d4f]/20">
+                          <span className="text-[10px]">▲</span>
+                          {evt.impact}
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-slate-500" />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] text-slate-500 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        汇通社
+                      </span>
+                      <span>{evt.date}</span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
-                    <span className="flex items-center gap-1.5">
-                      <Bot className="w-3 h-3" /> 汇通社
-                    </span>
-                    <span>{evt.date}</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
       </React.Fragment>
     ));
-  }, [messages, isTyping, handleEdit, handleWithdraw]);
+  }, [messages, isTyping, handleEdit, handleWithdraw, thinkingExpanded, ThinkingModule]);
 
   return (
     <>
       <div
-        className={`fixed bottom-8 -right-6 w-20 h-20 rounded-full flex items-center justify-center cursor-pointer z-[998] transition-all duration-500 ease-in-out hover:right-1 ${isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100"}`}
-        onClick={() => setIsOpen(true)}
+        className={`fixed bottom-10 z-[998] transition-all duration-500 ease-in-out ${
+          isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100"
+        }`}
+        style={{
+          right: isHovered ? "60px" : "20px"
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
-        <img src="/assets/logo1.png" alt="AI" className="w-20 h-20 object-cover rounded-full" />
+        <div className="relative">
+          {/* Tooltip */}
+          <div 
+            className={`transition-all duration-300 flex flex-col justify-center px-4 py-2.5 ${
+              isHovered ? "opacity-100 translate-x-0 scale-100" : "opacity-0 translate-x-10 scale-95 pointer-events-none"
+            }`}
+            style={{
+              width: "300px",
+              height: "64px",
+              background: "linear-gradient(90deg, rgba(158, 197, 225, 0.25) 0%, rgba(158, 197, 225, 0.1) 100%)",
+              backdropFilter: "blur(12px)",
+              borderRadius: "12px",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            <div className="flex items-center gap-1.5 mb-1" style={{ fontSize: "12px" }}>
+              <span className="text-white/80 font-medium whitespace-nowrap">
+                给AI 注入事件因子，<span className="text-blue-400">轻松拿捏油价走势</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <button 
+                className="text-white font-bold hover:text-blue-400 transition-colors flex-1 text-left truncate"
+                style={{ fontSize: "14px" }}
+                onClick={() => {
+                  handleSend(PRESET_QUESTIONS[currentQuestionIdx]);
+                  setIsOpen(true);
+                }}
+              >
+                {PRESET_QUESTIONS[currentQuestionIdx]}
+              </button>
+              <div className="flex items-center gap-1 ml-2">
+                <button 
+                  className="w-5 h-5 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentQuestionIdx(prev => (prev - 1 + PRESET_QUESTIONS.length) % PRESET_QUESTIONS.length);
+                  }}
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                </button>
+                <button 
+                  className="w-5 h-5 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentQuestionIdx(prev => (prev + 1) % PRESET_QUESTIONS.length);
+                  }}
+                >
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Avatar - Positioned to overlap top-right corner of tooltip */}
+          <div 
+            className="absolute -top-12 -right-12 group cursor-pointer z-10"
+            onClick={() => setIsOpen(true)}
+          >
+            <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-[15px] group-hover:bg-blue-500/40 transition-all duration-500"></div>
+            <div className="relative w-20 h-20 rounded-full border-2 border-white/20 group-hover:border-white/40 transition-all overflow-hidden shadow-2xl bg-[#0f172a]">
+              <img 
+                src="/assets/logo1.png" 
+                alt="AI" 
+                className="w-full h-full object-cover scale-110 group-hover:scale-125 transition-transform duration-500" 
+              />
+            </div>
+          </div>
+        </div>
       </div>
+
 
       <div
         className={`fixed right-4 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-[1000] flex flex-col transition-all duration-300 origin-bottom-right ${isOpen ? "scale-100 opacity-100 pointer-events-auto" : "scale-90 opacity-0 pointer-events-none"}`}
@@ -277,8 +428,16 @@ export default function ChatPanel({
 
         <div className="flex items-center justify-between px-5 pb-3 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold text-white/90 tracking-wide">
-              {showForm ? "事件注入表单" : "ai 注入助手"}
+            <span 
+              className="tracking-wide"
+              style={{
+                fontSize: "16px",
+                fontWeight: "bold",
+                lineHeight: "28px",
+                color: "rgba(255, 255, 255, 0.8)"
+              }}
+            >
+              {showForm ? "事件注入表单" : "九天数据助手"}
             </span>
           </div>
           <button
@@ -379,74 +538,36 @@ export default function ChatPanel({
           ) : (
             <div className="flex-1 overflow-y-auto p-5 space-y-5 scroll-smooth scrollbar-none relative" ref={scrollRef}>
               {messages.length === 0 && !isTyping ? (
-                <div className="h-full flex flex-col">
-                  <h3 className="text-base font-medium text-white/70 mb-14 ml-1">AI 注入事件</h3>
-                  <div className="flex flex-col items-center justify-center flex-1 -mt-16">
-                    <div className="relative mb-14">
-                      <div className="absolute inset-0 rounded-full bg-blue-400/20 blur-[40px] animate-pulse"></div>
-                      <div className="relative w-28 h-28 rounded-full border border-white/20 p-1.5 overflow-hidden bg-gradient-to-b from-white/10 to-transparent shadow-2xl">
-                        <img src="/assets/image.png" alt="AI Avatar" className="w-full h-full object-cover rounded-full" />
-                      </div>
+                <div className="flex flex-col items-center justify-center h-[489px] -mt-4">
+                  <div className="relative mb-8">
+                    <div className="absolute inset-0 rounded-full bg-blue-400/20 blur-[40px] animate-pulse"></div>
+                    <div className="relative w-289 h-289 p-1.5 overflow-hidden ">
+                      <img src="/assets/image.png" alt="AI Avatar" className="w-full h-full object-cover rounded-full" />
                     </div>
-                    <div className="w-full space-y-3 px-1 max-w-[300px]">
-                      {SUGGESTIONS.map((text, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleSend(text)}
-                          className="w-full bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl py-3 px-4 flex items-center gap-3 text-sm text-white/60 transition-all hover:border-white/10 group shadow-lg"
-                        >
-                          <Sparkles className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
-                          <span className="truncate text-left">{text}</span>
-                        </button>
-                      ))}
-                    </div>
+                  </div>
+                  <div className="w-full space-y-3 px-1 max-w-[300px]">
+                    {SUGGESTIONS.map((text, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSend(text)}
+                        className="w-full bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl py-3 px-4 flex items-center gap-3 text-sm text-white/60 transition-all hover:border-white/10 group shadow-lg"
+                      >
+                        <Sparkles className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+                        <span className="truncate text-left">{text}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               ) : (
                 <>
                   {MessageList}
-                  {isTyping && (
+                  {isTyping && !messages.some(m => m.role === 'assistant' && m.isInjection) && (
                     <div className="flex flex-col items-start w-full">
-                      <div className="max-w-[90%] rounded-2xl p-4 text-sm text-slate-400 bg-white/10 backdrop-blur-md border border-white/10 shadow-xl rounded-tl-sm flex flex-col gap-3 w-full animate-pulse">
-                        <div className="flex items-center gap-2.5 text-sm text-white/60 font-medium">
-                          <BrainCircuit className="w-4 h-4 text-blue-400 animate-spin-slow" />
-                          <span>{injectionProgress >= 3 ? "思考与分析完成" : "思考与分析中..."}</span>
-                          <div className="ml-auto">
-                            {thinkingExpanded ? (
-                              <ChevronUp className="w-4 h-4" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4" />
-                            )}
-                          </div>
-                        </div>
-                        <div className={`grid transition-all duration-300 ease-in-out ${thinkingExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                          <div className="overflow-hidden">
-                            <div className="space-y-2 mt-2 bg-black/20 rounded-xl p-3 border border-white/5">
-                              <div className={`flex items-center justify-between text-[11px] p-2 rounded-lg transition-colors ${injectionProgress >= 1 ? "text-green-400" : "text-white/40"}`}>
-                                <div className="flex items-center gap-2">
-                                  {injectionProgress >= 1 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                  <span>数据感知</span>
-                                </div>
-                                {injectionProgress >= 1 && <span className="text-white/30">3.5s &gt;</span>}
-                              </div>
-                              <div className={`flex items-center justify-between text-[11px] p-2 rounded-lg transition-colors ${injectionProgress >= 2 ? "text-green-400" : "text-white/40"}`}>
-                                <div className="flex items-center gap-2">
-                                  {injectionProgress >= 2 ? <CheckCircle2 className="w-3.5 h-3.5" /> : injectionProgress >= 1 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <div className="w-3.5 h-3.5 rounded-full border border-white/10" />}
-                                  <span>深度思考</span>
-                                </div>
-                                {injectionProgress >= 2 && <span className="text-white/30">3.5s &gt;</span>}
-                              </div>
-                              <div className={`flex items-center justify-between text-[11px] p-2 rounded-lg transition-colors ${injectionProgress >= 3 ? "text-green-400" : "text-white/40"}`}>
-                                <div className="flex items-center gap-2">
-                                  {injectionProgress >= 3 ? <CheckCircle2 className="w-3.5 h-3.5" /> : injectionProgress >= 2 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <div className="w-3.5 h-3.5 rounded-full border border-white/10" />}
-                                  <span>生成分析结果</span>
-                                </div>
-                                {injectionProgress >= 3 && <span className="text-white/30">3.5s &gt;</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <ThinkingModule 
+                        progress={injectionProgress} 
+                        expanded={thinkingExpanded} 
+                        setExpanded={setThinkingExpanded} 
+                      />
                     </div>
                   )}
                 </>
@@ -456,12 +577,6 @@ export default function ChatPanel({
         </div>
 
         <div className="p-5 border-t border-white/5 bg-white/5 shrink-0 rounded-b-2xl flex items-center gap-3">
-          <button
-            onClick={handleReset}
-            className="h-10 px-4 shrink-0 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 hover:text-white transition-all text-xs font-bold border border-white/5 shadow-inner"
-          >
-            重置
-          </button>
           <div className="flex-1 relative flex items-center bg-gradient-to-r from-yellow-400/40 via-blue-500/40 to-purple-600/40 rounded-2xl p-[1.5px] shadow-lg shadow-black/20">
             <div className="w-full bg-[#111827]/90 backdrop-blur-md rounded-[14px] flex items-center pr-2 pl-1.5 py-0.5">
               <button
@@ -479,13 +594,24 @@ export default function ChatPanel({
                 placeholder="您可以输入一些模拟事件..."
                 className="w-full bg-transparent border-none py-2.5 pl-2 pr-10 text-[13px] text-white placeholder-white/30 focus:outline-none focus:ring-0"
               />
-              <button
-                onClick={() => handleSend()}
-                disabled={isTyping || !input.trim()}
-                className="w-9 h-9 shrink-0 rounded-xl bg-blue-600 flex items-center justify-center text-white hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg"
-              >
-                <Send className="w-4 h-4 ml-0.5" />
-              </button>
+              <div className="flex items-center gap-2 pr-1">
+                {messages.length > 0 && (
+                  <button
+                    onClick={handleReset}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                    title="重置对话"
+                  >
+                    <RotateCcw className="w-4.5 h-4.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => handleSend()}
+                  disabled={isTyping || !input.trim()}
+                  className="w-9 h-9 shrink-0 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg"
+                >
+                  <Send className="w-4 h-4 ml-0.5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
